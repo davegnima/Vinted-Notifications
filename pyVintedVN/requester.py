@@ -117,9 +117,19 @@ class Requester:
             dict: Authorization and anonymous-id headers, plus a Referer the API expects.
         """
         headers = {
-            "Accept": "application/json",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
             "Referer": self.VINTED_AUTH_URL,
             "Origin": self.VINTED_AUTH_URL.rstrip("/"),
+            # Cloudflare's bot-mitigation ("Cf-Mitigated: challenge") blocks requests
+            # missing these fetch-metadata headers, even with a valid bearer token
+            # and a clean residential-quality IP. A real browser always sends them
+            # on a cross-origin XHR/fetch call, so their absence alone is enough to
+            # get flagged. Confirmed by isolating the variable: identical request,
+            # same IP, same token -> 403 without these headers, 200 with them.
+            "Sec-Fetch-Site": "same-site",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
         }
         token = self.session.cookies.get("access_token_web")
         anon_id = self.session.cookies.get("anon_id")
