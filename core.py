@@ -302,17 +302,26 @@ def process_items(queue):
     # for each keyword we parse data
     for query in all_queries:
         all_items = vinted.items.search(query[1], nbr_items=items_per_query)
+        # TEMP DIAGNOSTIC: `requester` is a module-level singleton (see
+        # requester.py: "requester = Requester()" at import time), shared by
+        # every Vinted()/Items() instance in this process. Its self.session
+        # (cookies AND proxy) is never recreated between cycles - only
+        # session.proxies gets overwritten per-call by proxies.configure_proxy().
+        # Logging it here tells us which proxy actually served this exact
+        # query, so we can check whether the tracker keeps landing on the same
+        # (possibly broken/self-caching) proxy for these specific queries.
+        # Remove once diagnosed.
+        try:
+            session_proxies = dict(requester.session.proxies)
+        except Exception as e:
+            session_proxies = f"<error reading proxies: {e}>"
         # Filter to only include new items. This should reduce the amount of db calls.
         data = [item for item in all_items if item.is_new_item()]
         queue.put((data, query[0]))
-        # TEMP DIAGNOSTIC: log the exact item ids fetched this cycle, so we can
-        # compare consecutive cycles and see whether items_per_query is too low
-        # (ids jump by more than items_per_query between cycles = items are
-        # skipped before we ever see them) versus a dedup bug (same ids seen
-        # repeatedly but never written to the db). Remove once diagnosed.
         ids_this_cycle = [item.id for item in data]
         logger.info(
-            f"Scraped {len(data)} items for query {query[0]}: ids={ids_this_cycle}"
+            f"Scraped {len(data)} items for query {query[0]}: ids={ids_this_cycle} "
+            f"proxy_used={session_proxies}"
         )
 
 
