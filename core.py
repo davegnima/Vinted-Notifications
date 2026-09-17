@@ -395,8 +395,14 @@ def clear_item_queue(items_queue, new_items_queue):
                 image=None if item.photo is None else item.photo,
             )
             # add the item to the queue
-            new_items_queue.put((content, item.url, "Open Vinted", None, None))
-            # new_items_queue.put((content, item.url, "Open Vinted", item.buy_url, "Open buy page"))
+            # photo_url is passed separately (not just embedded in the {image}
+            # placeholder inside content) so the Telegram side can send it as a
+            # real photo attachment (send_photo) instead of relying on Telegram's
+            # link-preview mechanism, which only ever renders a small thumbnail.
+            new_items_queue.put(
+                (content, item.url, "Open Vinted", None, None, item.photo)
+            )
+            # new_items_queue.put((content, item.url, "Open Vinted", item.buy_url, "Open buy page", item.photo))
 
 
 def contains_banwords(title, banwords_str):
