@@ -16,6 +16,15 @@ if not os.path.exists("./data/vinted_notifications.db"):
     os.makedirs("./data", exist_ok=True)
     db.create_or_update_sqlite_db("initial_db.sql")
     logger.info("Database created successfully")
+else:
+    # On an existing install, create_or_update_sqlite_db() above is skipped
+    # entirely (its CREATE TABLE IF NOT EXISTS block never runs), so
+    # ensure_brand_column() - which lives inside that function - never ran
+    # either. That left production databases without the 'brand' column
+    # while the code already queries/inserts it, causing every db.get_items()
+    # and db.add_item_to_db() call to fail with "no such column: brand".
+    # Running the migration here too covers the existing-db startup path.
+    db.ensure_brand_column()
 
 import core
 from rss_feed_plugin.rss_feed import rss_feed_process
