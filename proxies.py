@@ -16,7 +16,14 @@ _SINGLE_PROXY = None
 
 # URL to test proxies against
 _TEST_URL = "https://www.vinted.fr/"
-_TEST_TIMEOUT = 2  # seconds
+# 2s was too aggressive for datacenter proxies under load: when the health
+# check for the whole pool ran in parallel (10 workers) right after container
+# startup, every proxy could time out at once, get_random_proxy() would then
+# cache "no working proxies" for the next 6 hours (see PROXY_RECHECK_INTERVAL
+# below), and every request for that entire window went out with no proxy at
+# all - straight from Railway's own IP, which Vinted/Cloudflare has reason to
+# rate-limit or serve stale/limited results to given how hard it's been hit.
+_TEST_TIMEOUT = 8  # seconds
 # Maximum number of concurrent workers for proxy checking
 MAX_PROXY_WORKERS = 10
 # Time interval in seconds after which proxies should be rechecked (6 hours)
@@ -158,6 +165,14 @@ def get_random_proxy() -> Optional[str]:
         check_proxies = db.get_parameter("check_proxies") == "True"
         if check_proxies:
             working_proxies = check_proxies_parallel(all_proxies)
+            # Surfaced explicitly because a bad result here (0 working out of
+            # a healthy-looking pool) silently sends every request out with no
+            # proxy for the next PROXY_RECHECK_INTERVAL - previously invisible
+            # since the fallback below returned None with no logging at all.
+            logger.info(
+                f"Proxy health check: {len(working_proxies)}/{len(all_proxies)} "
+                f"proxies passed (timeout={_TEST_TIMEOUT}s)."
+            )
             if working_proxies:
                 _PROXY_CACHE = working_proxies
                 # If there's only one working proxy, cache it separately
@@ -165,6 +180,13 @@ def get_random_proxy() -> Optional[str]:
                     _SINGLE_PROXY = working_proxies[0]
                     return _SINGLE_PROXY
                 return random.choice(working_proxies)
+            else:
+                logger.warning(
+                    "All proxies failed the health check - falling back to no "
+                    "proxy for this recheck interval. If the pool is actually "
+                    "healthy, this usually means the check timeout is too "
+                    "tight for the network conditions at startup."
+                )
         else:
             # If CHECK_PROXIES is False, just cache all proxies without checking them
             _PROXY_CACHE = all_proxies
