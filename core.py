@@ -305,7 +305,15 @@ def process_items(queue):
         # Filter to only include new items. This should reduce the amount of db calls.
         data = [item for item in all_items if item.is_new_item()]
         queue.put((data, query[0]))
-        logger.info(f"Scraped {len(data)} items for query: {query[1]}")
+        # TEMP DIAGNOSTIC: log the exact item ids fetched this cycle, so we can
+        # compare consecutive cycles and see whether items_per_query is too low
+        # (ids jump by more than items_per_query between cycles = items are
+        # skipped before we ever see them) versus a dedup bug (same ids seen
+        # repeatedly but never written to the db). Remove once diagnosed.
+        ids_this_cycle = [item.id for item in data]
+        logger.info(
+            f"Scraped {len(data)} items for query {query[0]}: ids={ids_this_cycle}"
+        )
 
 
 def clear_item_queue(items_queue, new_items_queue):
@@ -329,6 +337,8 @@ def clear_item_queue(items_queue, new_items_queue):
             )
 
         to_notify = []
+        # TEMP DIAGNOSTIC counters. Remove once diagnosed.
+        skipped_already_in_db = []
         for item in reversed(data):
 
             # The watermark is only meaningful when the API actually supplied a
@@ -344,6 +354,7 @@ def clear_item_queue(items_queue, new_items_queue):
             if db.is_item_in_db_by_id(item.id) is True:
                 # We update the timestamp
                 db.update_last_timestamp(query_id, item.raw_timestamp)
+                skipped_already_in_db.append(item.id)
                 continue
             # If there's an allowlist and
             # If the user's country is not in the allowlist, we just update the timestamp
@@ -370,7 +381,21 @@ def clear_item_queue(items_queue, new_items_queue):
                 photo_url=item.photo,
                 query_id=query_id,
                 currency=item.currency,
+                brand=item.brand_title,
             )
+
+        # TEMP DIAGNOSTIC: summarize what happened to this batch, so we can see
+        # whether items are being silently deduped (already_in_db keeps
+        # matching ids that should be new) versus never being fetched at all
+        # (the gap between consecutive "Scraped ... ids=[...]" log lines is
+        # bigger than items_per_query, meaning the API's newest_first window
+        # already skipped past them before this code ever saw them).
+        # Remove once diagnosed.
+        logger.info(
+            f"clear_item_queue for query {query_id}: batch_size={len(data)} "
+            f"already_in_db={skipped_already_in_db} to_notify={[i.id for i in to_notify]} "
+            f"is_first_run={is_first_run}"
+        )
 
         if is_first_run:
             return
