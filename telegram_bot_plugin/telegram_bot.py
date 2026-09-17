@@ -250,13 +250,49 @@ class LeRobot:
 
     ### TELEGRAM SPECIFIC FUNCTIONS ###
 
-    async def send_new_post(self, content, url, text, buy_url=None, buy_text=None):
+    async def send_new_post(
+        self, content, url, text, buy_url=None, buy_text=None, photo_url=None
+    ):
+        """
+        Send a notification to the configured Telegram chat.
+
+        When photo_url is given, the item's picture is sent as a real photo
+        attachment (send_photo, with the message text as its caption). This
+        renders full-size in Telegram, unlike embedding the image as a hidden
+        <a href="..."> link inside a plain send_message call: Telegram treats
+        that as a link preview, which it always renders as a small thumbnail
+        regardless of the source image's actual resolution.
+
+        If sending as a photo fails for any reason (bad/expired image URL,
+        Telegram rejecting the content type, etc.), we fall back to the old
+        text-only send_message path so a single broken image never drops a
+        notification entirely.
+        """
         try:
             async with self.bot:
                 chat_ID = str(db.get_parameter("telegram_chat_id"))
                 buttons = [[InlineKeyboardButton(text=text, url=url)]]
                 if buy_url and buy_text:
                     buttons.append([InlineKeyboardButton(text=buy_text, url=buy_url)])
+
+                if photo_url:
+                    try:
+                        await self.bot.send_photo(
+                            chat_ID,
+                            photo=photo_url,
+                            caption=content,
+                            parse_mode="HTML",
+                            read_timeout=40,
+                            write_timeout=40,
+                            reply_markup=InlineKeyboardMarkup(buttons),
+                        )
+                        return
+                    except Exception as photo_err:
+                        logger.warning(
+                            f"send_photo failed ({photo_err}), falling back to "
+                            f"text message for URL: {url}"
+                        )
+
                 await self.bot.send_message(
                     chat_ID,
                     content,
@@ -272,7 +308,7 @@ class LeRobot:
             )
             await asyncio.sleep(retry_after + 2)
             # Retry sending the message
-            await self.send_new_post(content, url, text, buy_url, buy_text)
+            await self.send_new_post(content, url, text, buy_url, buy_text, photo_url)
         except Exception as e:
             logger.error(f"Error sending new post: {str(e)}", exc_info=True)
 
@@ -294,8 +330,18 @@ class LeRobot:
         try:
             while 1:
                 if not self.new_items_queue.empty():
-                    content, url, text, buy_url, buy_text = self.new_items_queue.get()
-                    await self.send_new_post(content, url, text, buy_url, buy_text)
+                    item_data = self.new_items_queue.get()
+                    # Accept both the old 5-tuple (no photo_url) and the new
+                    # 6-tuple, so any entry still sitting in the queue from
+                    # before this update doesn't crash the dispatcher.
+                    if len(item_data) == 6:
+                        content, url, text, buy_url, buy_text, photo_url = item_data
+                    else:
+                        content, url, text, buy_url, buy_text = item_data
+                        photo_url = None
+                    await self.send_new_post(
+                        content, url, text, buy_url, buy_text, photo_url
+                    )
                 else:
                     await asyncio.sleep(0.1)
                     pass
