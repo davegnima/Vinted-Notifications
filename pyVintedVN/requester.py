@@ -160,7 +160,7 @@ class Requester:
         # Set a random proxy for this request
         proxy_configured = proxies.configure_proxy(self.session)
         if self.debug and proxy_configured:
-            logger.debug(f"Using proxy: {self.session.proxies}")
+            logger.debug(f"Using proxy: {proxies.mask_proxy(self.session.proxies)}")
 
         # The API is token-gated, so make sure we hold one before the first call.
         if not self.session.cookies.get("access_token_web"):
@@ -229,7 +229,7 @@ class Requester:
         # Set a random proxy for this request
         proxy_configured = proxies.configure_proxy(self.session)
         if self.debug and proxy_configured:
-            logger.debug(f"Using proxy: {self.session.proxies}")
+            logger.debug(f"Using proxy: {proxies.mask_proxy(self.session.proxies)}")
 
         response = self.session.post(url, params)
         response.raise_for_status()

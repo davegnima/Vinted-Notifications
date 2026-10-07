@@ -1,4 +1,5 @@
 import db
+import proxies
 import requests
 from pyVintedVN import Vinted, requester
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -312,7 +313,7 @@ def process_items(queue):
         # (possibly broken/self-caching) proxy for these specific queries.
         # Remove once diagnosed.
         try:
-            session_proxies = dict(requester.session.proxies)
+            session_proxies = proxies.mask_proxy(dict(requester.session.proxies))
         except Exception as e:
             session_proxies = f"<error reading proxies: {e}>"
         # Filter to only include new items. This should reduce the amount of db calls.

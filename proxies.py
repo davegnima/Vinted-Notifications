@@ -1,4 +1,5 @@
 import random
+import re
 import requests
 import time
 from requests.exceptions import RequestException
@@ -8,6 +9,16 @@ from logger import get_logger
 
 # Get logger for this module
 logger = get_logger(__name__)
+
+
+_CREDENTIALS_RE = re.compile(r"(://)[^/@\s'\"]+@")
+
+
+def mask_proxy(value):
+    """Return str(value) with any "user:password@" removed from proxy URLs, so
+    logs can show which proxy (host:port) was used without leaking credentials."""
+    return _CREDENTIALS_RE.sub(r"\1***@", str(value))
+
 
 # Cache for proxy list
 _PROXY_CACHE = None
