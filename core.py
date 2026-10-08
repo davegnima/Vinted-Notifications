@@ -1,3 +1,7 @@
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import db
 import proxies
 import requests
@@ -12,6 +16,31 @@ logger = get_logger(__name__)
 # is answered purely by "have we recorded its id before?". That makes a wiped or
 # freshly seeded database the only real flood risk, and this caps the blast radius.
 MAX_NOTIFICATIONS_PER_RUN = 10
+
+# Night pause (opt-in per instance, 2026-10-08): between NIGHT_PAUSE_FROM and NIGHT_PAUSE_TO (hours, Europe/Rome)
+# process_items does nothing, so no request reaches Vinted and no proxy bandwidth is spent. The first run after the
+# pause only records what is on the first page, without notifying, so the night backlog is not replayed.
+# Both variables empty (default) = no pause.
+NIGHT_PAUSE_FROM = os.environ.get("NIGHT_PAUSE_FROM", "").strip()
+NIGHT_PAUSE_TO = os.environ.get("NIGHT_PAUSE_TO", "").strip()
+
+
+def in_night_pause(now=None):
+    """True if the Italian hour is inside [NIGHT_PAUSE_FROM, NIGHT_PAUSE_TO), also across midnight."""
+    if not NIGHT_PAUSE_FROM or not NIGHT_PAUSE_TO:
+        return False
+    try:
+        start, end = int(NIGHT_PAUSE_FROM), int(NIGHT_PAUSE_TO)
+    except ValueError:
+        return False
+    hour = (now or datetime.now(ZoneInfo("Europe/Rome"))).hour
+    if start < end:
+        return start <= hour < end
+    return hour >= start or hour < end
+
+
+# True while paused; starts True if the process is started inside the pause window.
+_pause_state = {"paused": in_night_pause()}
 
 
 def process_query(query, name=None):
@@ -292,6 +321,16 @@ def process_items(queue):
         None
     """
 
+    if in_night_pause():
+        if not _pause_state["paused"]:
+            logger.info("Night pause started: no requests to Vinted until it ends")
+        _pause_state["paused"] = True
+        return
+    silent_resume = _pause_state["paused"]
+    if silent_resume:
+        logger.info("Night pause ended: recording the first page without notifying")
+        _pause_state["paused"] = False
+
     all_queries = db.get_queries()
 
     # Initialize Vinted
@@ -318,7 +357,7 @@ def process_items(queue):
             session_proxies = f"<error reading proxies: {e}>"
         # Filter to only include new items. This should reduce the amount of db calls.
         data = [item for item in all_items if item.is_new_item()]
-        queue.put((data, query[0]))
+        queue.put((data, query[0], silent_resume))
         ids_this_cycle = [item.id for item in data]
         logger.info(
             f"Scraped {len(data)} items for query {query[0]}: ids={ids_this_cycle} "
@@ -332,14 +371,14 @@ def clear_item_queue(items_queue, new_items_queue):
     This function is scheduled to run frequently.
     """
     if not items_queue.empty():
-        data, query_id = items_queue.get()
+        data, query_id, silent = items_queue.get()
         banwords_str = db.get_parameter("banwords")
 
         # Read the watermark once, before the loop. It doubles as the "has this query
         # ever produced anything?" flag, and the updates made below would otherwise
         # cut a first-run priming pass short right after the first item.
         last_query_timestamp = db.get_last_timestamp(query_id)
-        is_first_run = last_query_timestamp is None
+        is_first_run = last_query_timestamp is None or silent
         if is_first_run:
             logger.info(
                 f"First run for query {query_id}: recording {len(data)} item(s) "
