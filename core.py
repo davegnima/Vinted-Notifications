@@ -474,7 +474,12 @@ def clear_item_queue(items_queue, new_items_queue):
                 brand=item.brand_title,
                 image=None if item.photo is None else item.photo,
             )
-            if query_name:
+            if query_name and query_url:
+                content += (
+                    f'\n🔎 Query: <a href="{html.escape(query_url, quote=True)}">'
+                    f"{html.escape(query_name)}</a>"
+                )
+            elif query_name:
                 content += f"\n🔎 Query: {html.escape(query_name)}"
             # add the item to the queue
             # photo_url is passed separately (not just embedded in the {image}
