@@ -1,3 +1,4 @@
+import html
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -459,6 +460,11 @@ def clear_item_queue(items_queue, new_items_queue):
             )
             to_notify = to_notify[-MAX_NOTIFICATIONS_PER_RUN:]
 
+        # The query that found the items: its name goes in the message text and
+        # its search URL in a second button, so whoever reads the notification
+        # (person or bot) knows which search produced it.
+        query_name, query_url = query_info(query_id)
+
         for item in to_notify:
             # We create the message
             message_template = db.get_parameter("message_template")
@@ -468,15 +474,37 @@ def clear_item_queue(items_queue, new_items_queue):
                 brand=item.brand_title,
                 image=None if item.photo is None else item.photo,
             )
+            if query_name:
+                content += f"\n🔎 Query: {html.escape(query_name)}"
             # add the item to the queue
             # photo_url is passed separately (not just embedded in the {image}
             # placeholder inside content) so the Telegram side can send it as a
             # real photo attachment (send_photo) instead of relying on Telegram's
             # link-preview mechanism, which only ever renders a small thumbnail.
             new_items_queue.put(
-                (content, item.url, "Open Vinted", None, None, item.photo)
+                (
+                    content,
+                    item.url,
+                    "Open Vinted",
+                    query_url,
+                    "🔎 Query" if query_url else None,
+                    item.photo,
+                )
             )
             # new_items_queue.put((content, item.url, "Open Vinted", item.buy_url, "Open buy page", item.photo))
+
+
+def query_info(query_id):
+    """
+    Name and search URL of a query, for the notification.
+
+    Returns (name, url); the name falls back to "query <id>" and both are None
+    if the query can no longer be found (e.g. removed while items were queued).
+    """
+    for row in db.get_queries() or []:
+        if row[0] == query_id:
+            return (row[3] or f"query {query_id}"), row[1]
+    return None, None
 
 
 def contains_banwords(title, banwords_str):
