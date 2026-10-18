@@ -574,11 +574,17 @@ def _euros(text):
 
 
 def best_model(title, models):
-    """The model the title matches with the most words (a priced one wins a tie); None if none."""
+    """
+    The most specific model the title matches, None if none: most words, then
+    longest ("x100v" beats "x100" on "X100V"), then a priced one.
+    """
     matched = [m for m in models if title_has_words(title, m["words"])]
     if not matched:
         return None
-    return max(matched, key=lambda m: (len(m["words"]), m["resale"] is not None))
+    return max(
+        matched,
+        key=lambda m: (len(m["words"]), len("".join(m["words"])), m["resale"] is not None),
+    )
 
 
 TOLERANCE_OVER_BUY_MAX = 1.15
