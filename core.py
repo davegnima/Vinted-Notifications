@@ -601,6 +601,7 @@ def best_model(title, models):
 
 
 TOLERANCE_OVER_BUY_MAX = 1.15
+UNCERTAIN_PRICE_CAP = 50
 
 
 def traffic_light(model, price):
@@ -616,6 +617,9 @@ def traffic_light(model, price):
     except (TypeError, ValueError):
         price = None
     buy = model["buy_max"]
+    if buy is None and model["resale"] is not None and price is not None:
+        # Uncertain resale: no buy max to trust, so only cheap listings are worth a look.
+        return "⚪" if price <= UNCERTAIN_PRICE_CAP else "🔴"
     if model["resale"] is None or buy is None or price is None:
         return "🔴" if buy == 0 else "⚪"
     if buy <= 0 or price > buy * TOLERANCE_OVER_BUY_MAX:
