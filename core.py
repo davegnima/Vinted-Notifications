@@ -1,3 +1,4 @@
+import functools
 import html
 import os
 import re
@@ -537,6 +538,14 @@ def clear_item_queue(items_queue, new_items_queue):
             # new_items_queue.put((content, item.url, "Open Vinted", item.buy_url, "Open buy page", item.photo))
 
 
+def _query_row(query_id):
+    """The query's db row (id, url, last_item, name), None if it is gone."""
+    for row in db.get_queries() or []:
+        if row[0] == query_id:
+            return row
+    return None
+
+
 def query_info(query_id):
     """
     Name and search URL of a query, for the notification.
@@ -544,10 +553,10 @@ def query_info(query_id):
     Returns (name, url); the name falls back to "query <id>" and both are None
     if the query can no longer be found (e.g. removed while items were queued).
     """
-    for row in db.get_queries() or []:
-        if row[0] == query_id:
-            return (split_query_name(row[3])[0] or f"query {query_id}"), row[1]
-    return None, None
+    row = _query_row(query_id)
+    if row is None:
+        return None, None
+    return (split_query_name(row[3])[0] or f"query {query_id}"), row[1]
 
 
 MODELS_SEPARATOR = "::"
@@ -556,12 +565,11 @@ STUDY_PREFIX = "STUDIO"
 
 def is_study_query(query_id):
     """True for a query named "STUDIO ...": red and unmatched items are recorded, not dropped."""
-    for row in db.get_queries() or []:
-        if row[0] == query_id:
-            return (row[3] or "").strip().upper().startswith(STUDY_PREFIX)
-    return False
+    row = _query_row(query_id)
+    return row is not None and (row[3] or "").strip().upper().startswith(STUDY_PREFIX)
 
 
+@functools.lru_cache(maxsize=512)
 def split_query_name(raw_name):
     """
     Split a query name into (display name, models).
@@ -702,10 +710,8 @@ def model_line(model, price):
 
 def query_models(query_id):
     """Models listed in the query's name; [] if it has none."""
-    for row in db.get_queries() or []:
-        if row[0] == query_id:
-            return split_query_name(row[3])[1]
-    return []
+    row = _query_row(query_id)
+    return split_query_name(row[3])[1] if row is not None else []
 
 
 def _normalise(text):
