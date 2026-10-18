@@ -573,13 +573,17 @@ def split_query_name(raw_name):
     unknown buy_max, 0 when no price gives the target margin); a trailing "*"
     marks prices that are an estimate rather than measured from sales. After the
     prices, "!word,other words" lists words that mean the title is a different
-    product ("fire emblem gamecube=153/55!advance,sacred stones").
+    product ("fire emblem gamecube=153/55!advance,sacred stones"); an entry that
+    is only "!word,other words" excludes those words for every model of the query.
     """
     if not raw_name or MODELS_SEPARATOR not in raw_name:
         return raw_name, []
     display, _, models_text = raw_name.partition(MODELS_SEPARATOR)
-    models = []
+    models, common = [], []
     for entry in re.split(r"[|\n]", models_text):
+        if entry.strip().startswith("!"):
+            common += [e for e in (_normalise(x) for x in entry.strip()[1:].split(",")) if e]
+            continue
         label, _, prices = entry.partition("=")
         prices, _, excluded = prices.partition("!")
         words = _normalise(label).split()
@@ -597,6 +601,8 @@ def split_query_name(raw_name):
                 "excluded": [e for e in (_normalise(x) for x in excluded.split(",")) if e],
             }
         )
+    for m in models:
+        m["excluded"] += common
     return display.strip(), models
 
 
