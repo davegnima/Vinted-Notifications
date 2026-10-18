@@ -545,7 +545,8 @@ def split_query_name(raw_name):
     and one model per entry; a name without "::" has no models. A model is
     {"label", "words", "resale", "buy_max"}: the words must all be in the title
     (see title_has_words); "=resale/buy_max" in euros is optional ("?" for an
-    unknown buy_max, 0 when no price gives the target margin).
+    unknown buy_max, 0 when no price gives the target margin); a trailing "*"
+    marks prices that are an estimate rather than measured from sales.
     """
     if not raw_name or MODELS_SEPARATOR not in raw_name:
         return raw_name, []
@@ -556,13 +557,15 @@ def split_query_name(raw_name):
         words = _normalise(label).split()
         if not words:
             continue
-        resale, _, buy = prices.partition("/")
+        estimate = prices.strip().endswith("*")
+        resale, _, buy = prices.strip().rstrip("*").partition("/")
         models.append(
             {
                 "label": " ".join(words),
                 "words": words,
                 "resale": _euros(resale),
                 "buy_max": _euros(buy),
+                "estimate": estimate,
             }
         )
     return display.strip(), models
@@ -606,8 +609,10 @@ def model_line(model, price):
         price = None
     resale, buy = model["resale"], model["buy_max"]
     if resale is None:
-        return f"\n⚪ Modello: {label} · prezzo atteso non in tabella"
+        return f"\n⚪ Modello: {label} · modello preciso non riconosciuto"
     line = f"\n{{}} Modello: {label} · rivendita ~{resale} €"
+    if model.get("estimate"):
+        line += " (stima)"
     if buy is None:
         return line.format("⚪") + " · stima poco sicura"
     if buy <= 0:
