@@ -1,5 +1,6 @@
 import html
 import os
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -387,6 +388,11 @@ def clear_item_queue(items_queue, new_items_queue):
             )
 
         to_notify = []
+        required_words = (
+            search_words(query_info(query_id)[1])
+            if os.environ.get("TITLE_MUST_MATCH_QUERY", "").strip() in ("1", "true")
+            else []
+        )
         # TEMP DIAGNOSTIC counters. Remove once diagnosed.
         skipped_already_in_db = []
         for item in reversed(data):
@@ -411,6 +417,12 @@ def clear_item_queue(items_queue, new_items_queue):
             if db.get_allowlist() != 0 and (
                 get_user_country(item.raw_data["user"]["id"])
             ) not in (db.get_allowlist() + ["XX"]):
+                db.update_last_timestamp(query_id, item.raw_timestamp)
+                continue
+            # Strict mode (TITLE_MUST_MATCH_QUERY=1): every word of the query's
+            # search text must appear in the title. Vinted's text search is fuzzy
+            # ("contax t2" returns any camera), so rare-model queries need this.
+            if required_words and not title_has_words(item.title, required_words):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
             # Check if the item title contains any banwords
@@ -510,6 +522,30 @@ def query_info(query_id):
         if row[0] == query_id:
             return (row[3] or f"query {query_id}"), row[1]
     return None, None
+
+
+def _normalise(text):
+    return " ".join(re.sub(r"[^0-9a-zà-ÿµ]+", " ", (text or "").lower()).split())
+
+
+def search_words(query_url):
+    """Words of a query's search_text, normalised; [] if there is none."""
+    if not query_url:
+        return []
+    text = " ".join(parse_qs(urlparse(query_url).query).get("search_text", []))
+    return _normalise(text).split()
+
+
+def title_has_words(title, words):
+    """
+    True if every word appears in the title as a whole word, or if the words
+    written together appear in it ("gameboy" for "game boy", "mjuii" for "mju ii").
+    """
+    norm = _normalise(title)
+    tokens = set(norm.split())
+    if all(w in tokens for w in words):
+        return True
+    return "".join(words) in norm.replace(" ", "")
 
 
 def contains_banwords(title, banwords_str):
