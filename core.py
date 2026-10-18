@@ -538,12 +538,16 @@ def search_words(query_url):
 
 def title_has_words(title, words):
     """
-    True if every word appears in the title as a whole word, or if the words
+    True if every word appears in the title (as a word or the start of one), or if the words
     written together appear in it ("gameboy" for "game boy", "mjuii" for "mju ii").
     """
     norm = _normalise(title)
-    tokens = set(norm.split())
-    if all(w in tokens for w in words):
+    tokens = norm.split()
+    # A word of two or more characters also matches as the start of a title word,
+    # so "gr" matches "gr1"/"gr10" and "mju" matches "mjuii".
+    if all(
+        any(t == w or (len(w) >= 2 and t.startswith(w)) for t in tokens) for w in words
+    ):
         return True
     return "".join(words) in norm.replace(" ", "")
 
