@@ -571,7 +571,9 @@ def split_query_name(raw_name):
     {"label", "words", "resale", "buy_max"}: the words must all be in the title
     (see title_has_words); "=resale/buy_max" in euros is optional ("?" for an
     unknown buy_max, 0 when no price gives the target margin); a trailing "*"
-    marks prices that are an estimate rather than measured from sales.
+    marks prices that are an estimate rather than measured from sales. After the
+    prices, "!word,other words" lists words that mean the title is a different
+    product ("fire emblem gamecube=153/55!advance,sacred stones").
     """
     if not raw_name or MODELS_SEPARATOR not in raw_name:
         return raw_name, []
@@ -579,6 +581,7 @@ def split_query_name(raw_name):
     models = []
     for entry in re.split(r"[|\n]", models_text):
         label, _, prices = entry.partition("=")
+        prices, _, excluded = prices.partition("!")
         words = _normalise(label).split()
         if not words:
             continue
@@ -591,6 +594,7 @@ def split_query_name(raw_name):
                 "resale": _euros(resale),
                 "buy_max": _euros(buy),
                 "estimate": estimate,
+                "excluded": [e for e in (_normalise(x) for x in excluded.split(",")) if e],
             }
         )
     return display.strip(), models
@@ -608,7 +612,13 @@ def best_model(title, models):
     beats "fujifilm x100" on "Fujifilm X100V"), then most words, then longest,
     then a priced one.
     """
-    matched = [m for m in models if title_has_words(title, m["words"])]
+    norm = f" {_normalise(title)} "
+    matched = [
+        m
+        for m in models
+        if title_has_words(title, m["words"])
+        and not any(f" {e} " in norm for e in m.get("excluded", ()))
+    ]
     if not matched:
         return None
     tokens = set(_normalise(title).split())
