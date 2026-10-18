@@ -683,18 +683,38 @@ def search_words(query_url):
 
 def title_has_words(title, words):
     """
-    True if every word appears in the title (as a word or the start of one), or if the words
-    written together appear in it ("gameboy" for "game boy", "mjuii" for "mju ii").
+    True if every word is in the title, as a whole word or followed only by a
+    model suffix ("gr" -> "gr1v", "mju" -> "mjuii", "fm2" -> "fm2n"), or if the
+    words written together are a run of whole title words ("gameboy" for
+    "game boy", "mjuii" for "mju ii"). "go" does not match "goonies" and "x10"
+    does not match "sx100".
     """
-    norm = _normalise(title)
-    tokens = norm.split()
-    # A word of two or more characters also matches as the start of a title word,
-    # so "gr" matches "gr1"/"gr10" and "mju" matches "mjuii".
-    if all(
-        any(t == w or (len(w) >= 2 and t.startswith(w)) for t in tokens) for w in words
-    ):
+    tokens = _normalise(title).split()
+    if all(any(_word_matches(t, w) for t in tokens) for w in words):
         return True
-    return "".join(words) in norm.replace(" ", "")
+    joined = "".join(words)
+    for i in range(len(tokens)):
+        run = ""
+        for t in tokens[i:]:
+            run += t
+            if _word_matches(run, joined):
+                return True
+            if len(run) >= len(joined):
+                break
+    return False
+
+
+_MODEL_SUFFIX = re.compile(r"(\d.*|i{1,3}|iv|v|s|n|x|mk\w*)")
+
+
+def _word_matches(token, word):
+    if token == word:
+        return True
+    return (
+        len(word) >= 2
+        and token.startswith(word)
+        and _MODEL_SUFFIX.fullmatch(token[len(word):]) is not None
+    )
 
 
 def contains_banwords(title, banwords_str):
