@@ -388,9 +388,14 @@ def clear_item_queue(items_queue, new_items_queue):
             )
 
         to_notify = []
+        # A model list in the query name ("Cameras :: contax t2 | nikon 35ti")
+        # keeps only titles matching one of the models; otherwise strict mode
+        # (TITLE_MUST_MATCH_QUERY=1) requires the search text's words.
+        models = query_models(query_id)
         required_words = (
             search_words(query_info(query_id)[1])
-            if os.environ.get("TITLE_MUST_MATCH_QUERY", "").strip() in ("1", "true")
+            if not models
+            and os.environ.get("TITLE_MUST_MATCH_QUERY", "").strip() in ("1", "true")
             else []
         )
         # TEMP DIAGNOSTIC counters. Remove once diagnosed.
@@ -423,6 +428,9 @@ def clear_item_queue(items_queue, new_items_queue):
             # search text must appear in the title. Vinted's text search is fuzzy
             # ("contax t2" returns any camera), so rare-model queries need this.
             if required_words and not title_has_words(item.title, required_words):
+                db.update_last_timestamp(query_id, item.raw_timestamp)
+                continue
+            if models and not any(title_has_words(item.title, m) for m in models):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
             # Check if the item title contains any banwords
@@ -520,8 +528,34 @@ def query_info(query_id):
     """
     for row in db.get_queries() or []:
         if row[0] == query_id:
-            return (row[3] or f"query {query_id}"), row[1]
+            return (split_query_name(row[3])[0] or f"query {query_id}"), row[1]
     return None, None
+
+
+MODELS_SEPARATOR = "::"
+
+
+def split_query_name(raw_name):
+    """
+    Split a query name into (display name, models).
+
+    "Cameras :: contax t2 | nikon 35ti" gives ("Cameras", [["contax", "t2"],
+    ["nikon", "35ti"]]); a name without "::" has no models. Each model is a
+    list of words that must all be in the title (see title_has_words).
+    """
+    if not raw_name or MODELS_SEPARATOR not in raw_name:
+        return raw_name, []
+    display, _, models_text = raw_name.partition(MODELS_SEPARATOR)
+    models = [_normalise(m).split() for m in re.split(r"[|\n]", models_text)]
+    return display.strip(), [m for m in models if m]
+
+
+def query_models(query_id):
+    """Models listed in the query's name; [] if it has none."""
+    for row in db.get_queries() or []:
+        if row[0] == query_id:
+            return split_query_name(row[3])[1]
+    return []
 
 
 def _normalise(text):
