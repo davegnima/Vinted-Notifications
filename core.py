@@ -430,7 +430,7 @@ def clear_item_queue(items_queue, new_items_queue):
             if required_words and not title_has_words(item.title, required_words):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
-            if models and not any(title_has_words(item.title, m) for m in models):
+            if models and best_model(item.title, models) is None:
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
             # Check if the item title contains any banwords
@@ -501,6 +501,8 @@ def clear_item_queue(items_queue, new_items_queue):
                 )
             elif query_name:
                 content += f"\n🔎 Query: {html.escape(query_name)}"
+            if models:
+                content += model_line(best_model(item.title, models), item.price)
             # add the item to the queue
             # photo_url is passed separately (not just embedded in the {image}
             # placeholder inside content) so the Telegram side can send it as a
@@ -539,15 +541,79 @@ def split_query_name(raw_name):
     """
     Split a query name into (display name, models).
 
-    "Cameras :: contax t2 | nikon 35ti" gives ("Cameras", [["contax", "t2"],
-    ["nikon", "35ti"]]); a name without "::" has no models. Each model is a
-    list of words that must all be in the title (see title_has_words).
+    "Cameras :: contax t2=850/331 | nikon 35ti | big mini=45/0" gives "Cameras"
+    and one model per entry; a name without "::" has no models. A model is
+    {"label", "words", "resale", "buy_max"}: the words must all be in the title
+    (see title_has_words); "=resale/buy_max" in euros is optional ("?" for an
+    unknown buy_max, 0 when no price gives the target margin).
     """
     if not raw_name or MODELS_SEPARATOR not in raw_name:
         return raw_name, []
     display, _, models_text = raw_name.partition(MODELS_SEPARATOR)
-    models = [_normalise(m).split() for m in re.split(r"[|\n]", models_text)]
-    return display.strip(), [m for m in models if m]
+    models = []
+    for entry in re.split(r"[|\n]", models_text):
+        label, _, prices = entry.partition("=")
+        words = _normalise(label).split()
+        if not words:
+            continue
+        resale, _, buy = prices.partition("/")
+        models.append(
+            {
+                "label": " ".join(words),
+                "words": words,
+                "resale": _euros(resale),
+                "buy_max": _euros(buy),
+            }
+        )
+    return display.strip(), models
+
+
+def _euros(text):
+    text = (text or "").strip()
+    return int(float(text)) if re.fullmatch(r"\d+(\.\d+)?", text) else None
+
+
+def best_model(title, models):
+    """The model the title matches with the most words (a priced one wins a tie); None if none."""
+    matched = [m for m in models if title_has_words(title, m["words"])]
+    if not matched:
+        return None
+    return max(matched, key=lambda m: (len(m["words"]), m["resale"] is not None))
+
+
+TOLERANCE_OVER_BUY_MAX = 1.15
+
+
+def model_line(model, price):
+    """
+    Notification line: which model the title matched and how the price compares.
+
+    🟢 price within buy_max (target margin and ROI reachable), 🟡 up to 15% over
+    (worth a counter-offer), 🔴 over that or no price reaches the target, ⚪ no data.
+    """
+    if model is None:
+        return ""
+    label = html.escape(model["label"])
+    try:
+        price = float(price)
+    except (TypeError, ValueError):
+        price = None
+    resale, buy = model["resale"], model["buy_max"]
+    if resale is None:
+        return f"\n⚪ Modello: {label} · prezzo atteso non in tabella"
+    line = f"\n{{}} Modello: {label} · rivendita ~{resale} €"
+    if buy is None:
+        return line.format("⚪") + " · stima poco sicura"
+    if buy <= 0:
+        return line.format("🔴") + " · nessun prezzo rende"
+    line += f" · buy max {buy} €"
+    if price is None:
+        return line.format("⚪")
+    if price <= buy:
+        return line.format("🟢")
+    if price <= buy * TOLERANCE_OVER_BUY_MAX:
+        return line.format("🟡") + " · da trattare"
+    return line.format("🔴")
 
 
 def query_models(query_id):
