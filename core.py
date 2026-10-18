@@ -578,15 +578,23 @@ def _euros(text):
 
 def best_model(title, models):
     """
-    The most specific model the title matches, None if none: most words, then
-    longest ("x100v" beats "x100" on "X100V"), then a priced one.
+    The most specific model the title matches, None if none: one whose words
+    are all whole title words beats one matched only as a word start ("x100v"
+    beats "fujifilm x100" on "Fujifilm X100V"), then most words, then longest,
+    then a priced one.
     """
     matched = [m for m in models if title_has_words(title, m["words"])]
     if not matched:
         return None
+    tokens = set(_normalise(title).split())
     return max(
         matched,
-        key=lambda m: (len(m["words"]), len("".join(m["words"])), m["resale"] is not None),
+        key=lambda m: (
+            all(w in tokens for w in m["words"]),
+            len(m["words"]),
+            len("".join(m["words"])),
+            m["resale"] is not None,
+        ),
     )
 
 
