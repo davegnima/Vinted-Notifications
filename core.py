@@ -2,6 +2,7 @@ import functools
 import html
 import os
 import re
+import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -715,7 +716,9 @@ def query_models(query_id):
 
 
 def _normalise(text):
-    return " ".join(re.sub(r"[^0-9a-zà-ÿµ]+", " ", (text or "").lower()).split())
+    # Accents dropped ("Pokémon" -> "pokemon", "découpe" -> "decoupe"), as in the bot's model table.
+    text = unicodedata.normalize("NFKD", (text or "").lower()).encode("ascii", "ignore").decode()
+    return " ".join(re.sub(r"[^0-9a-z]+", " ", text).split())
 
 
 def search_words(query_url):
