@@ -390,15 +390,14 @@ def clear_item_queue(items_queue, new_items_queue):
             )
 
         to_notify = []
-        # A model list in the query name ("Cameras :: contax t2 | nikon 35ti")
-        # keeps only titles matching one of the models; otherwise strict mode
-        # (TITLE_MUST_MATCH_QUERY=1) requires the search text's words.
+        # Strict mode (TITLE_MUST_MATCH_QUERY=1) requires the search text's words in
+        # the title; a model list in the query name ("Cameras :: contax t2 | nikon
+        # 35ti") then keeps only titles matching one of the models.
         models = query_models(query_id)
         study = is_study_query(query_id)
         required_words = (
             search_words(query_info(query_id)[1])
-            if not models
-            and os.environ.get("TITLE_MUST_MATCH_QUERY", "").strip() in ("1", "true")
+            if os.environ.get("TITLE_MUST_MATCH_QUERY", "").strip() in ("1", "true")
             else []
         )
         # TEMP DIAGNOSTIC counters. Remove once diagnosed.
