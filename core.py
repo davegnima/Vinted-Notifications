@@ -2,6 +2,7 @@ import functools
 import html
 import os
 import re
+import time
 import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -538,12 +539,17 @@ def clear_item_queue(items_queue, new_items_queue):
             # new_items_queue.put((content, item.url, "Open Vinted", item.buy_url, "Open buy page", item.photo))
 
 
+_QUERY_ROWS = {"at": 0.0, "rows": {}}
+QUERY_ROWS_TTL = 20  # seconds; names carry model lists of tens of kilobytes
+
+
 def _query_row(query_id):
-    """The query's db row (id, url, last_item, name), None if it is gone."""
-    for row in db.get_queries() or []:
-        if row[0] == query_id:
-            return row
-    return None
+    """The query's db row (id, url, last_item, name), None if it is gone; rows are re-read at most every 20 s."""
+    now = time.monotonic()
+    if now - _QUERY_ROWS["at"] > QUERY_ROWS_TTL or query_id not in _QUERY_ROWS["rows"]:
+        _QUERY_ROWS["rows"] = {row[0]: row for row in db.get_queries() or []}
+        _QUERY_ROWS["at"] = now
+    return _QUERY_ROWS["rows"].get(query_id)
 
 
 def query_info(query_id):
