@@ -155,6 +155,15 @@ class Items:
             "order": ",".join(
                 map(str, [tpl[1] for tpl in queries if tpl[0] == "order"])
             ),
+            # Visual search ("similar items"): the id comes from the website's
+            # image search and is passed through unchanged. Experimental: whether
+            # svc-catalogue honours it is what the first run should show.
+            "search_by_image_id": ",".join(
+                map(
+                    str,
+                    [tpl[1] for tpl in queries if tpl[0] == "search_by_image_id"],
+                )
+            ),
             "time": time,
         }
 
