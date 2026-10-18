@@ -481,6 +481,9 @@ def clear_item_queue(items_queue, new_items_queue):
                 f"{MAX_NOTIFICATIONS_PER_RUN} most recent and recording the rest silently."
             )
             to_notify = to_notify[-MAX_NOTIFICATIONS_PER_RUN:]
+        # Study queries ("STUDIO ..." names) only record items for analysis.
+        if is_study_query(query_id):
+            to_notify = []
 
         # The query that found the items: its name goes in the message text and
         # its search URL in a second button, so whoever reads the notification
@@ -537,6 +540,15 @@ def query_info(query_id):
 
 
 MODELS_SEPARATOR = "::"
+STUDY_PREFIX = "STUDIO"
+
+
+def is_study_query(query_id):
+    """True for a query named "STUDIO ...": its items are recorded, never notified."""
+    for row in db.get_queries() or []:
+        if row[0] == query_id:
+            return (row[3] or "").strip().upper().startswith(STUDY_PREFIX)
+    return False
 
 
 def split_query_name(raw_name):
