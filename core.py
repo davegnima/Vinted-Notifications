@@ -89,8 +89,10 @@ def process_query(query, name=None):
 
     query_params = parse_qs(parsed_url.query)
 
-    # Ensure the order flag is set to newest_first
-    query_params["order"] = ["newest_first"]
+    # Ensure the order flag is set to newest_first, except for visual searches
+    # (search_by_image_id): those must keep Vinted's similarity order.
+    if "search_by_image_id" not in query_params:
+        query_params["order"] = ["newest_first"]
     # Remove time and search_id if provided
     query_params.pop("time", None)
     query_params.pop("search_id", None)
@@ -194,8 +196,10 @@ def process_update_query(query_id, query, name):
     parsed_url = urlparse(query)
     query_params = parse_qs(parsed_url.query)
 
-    # Ensure the order flag is set to newest_first
-    query_params["order"] = ["newest_first"]
+    # Ensure the order flag is set to newest_first, except for visual searches
+    # (search_by_image_id): those must keep Vinted's similarity order.
+    if "search_by_image_id" not in query_params:
+        query_params["order"] = ["newest_first"]
     # Remove time and search_id if provided
     query_params.pop("time", None)
     query_params.pop("search_id", None)
