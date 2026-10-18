@@ -430,7 +430,9 @@ def clear_item_queue(items_queue, new_items_queue):
             if required_words and not title_has_words(item.title, required_words):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
-            if models and best_model(item.title, models) is None:
+            # With a model list, only titles naming a listed model whose price can
+            # still reach the target (not 🔴) are notified.
+            if models and traffic_light(best_model(item.title, models), item.price) in (None, "🔴"):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
             # Check if the item title contains any banwords
@@ -599,6 +601,26 @@ def best_model(title, models):
 
 
 TOLERANCE_OVER_BUY_MAX = 1.15
+
+
+def traffic_light(model, price):
+    """
+    🟢 price within buy_max (target margin and ROI reachable), 🟡 up to 15% over
+    (worth a counter-offer), 🔴 over that or no price reaches the target, ⚪ no
+    data; None when no model matched.
+    """
+    if model is None:
+        return None
+    try:
+        price = float(price)
+    except (TypeError, ValueError):
+        price = None
+    buy = model["buy_max"]
+    if model["resale"] is None or buy is None or price is None:
+        return "🔴" if buy == 0 else "⚪"
+    if buy <= 0 or price > buy * TOLERANCE_OVER_BUY_MAX:
+        return "🔴"
+    return "🟢" if price <= buy else "🟡"
 
 
 def model_line(model, price):
