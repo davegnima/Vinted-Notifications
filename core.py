@@ -392,6 +392,7 @@ def clear_item_queue(items_queue, new_items_queue):
         # keeps only titles matching one of the models; otherwise strict mode
         # (TITLE_MUST_MATCH_QUERY=1) requires the search text's words.
         models = query_models(query_id)
+        study = is_study_query(query_id)
         required_words = (
             search_words(query_info(query_id)[1])
             if not models
@@ -432,7 +433,12 @@ def clear_item_queue(items_queue, new_items_queue):
                 continue
             # With a model list, only titles naming a listed model whose price can
             # still reach the target (not 🔴) are notified.
-            if models and traffic_light(best_model(item.title, models), item.price) in (None, "🔴"):
+            # Study queries notify everything, red or unmatched included, to measure.
+            if (
+                models
+                and not study
+                and traffic_light(best_model(item.title, models), item.price) in (None, "🔴")
+            ):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
             # Check if the item title contains any banwords
@@ -481,9 +487,6 @@ def clear_item_queue(items_queue, new_items_queue):
                 f"{MAX_NOTIFICATIONS_PER_RUN} most recent and recording the rest silently."
             )
             to_notify = to_notify[-MAX_NOTIFICATIONS_PER_RUN:]
-        # Study queries ("STUDIO ..." names) only record items for analysis.
-        if is_study_query(query_id):
-            to_notify = []
 
         # The query that found the items: its name goes in the message text and
         # its search URL in a second button, so whoever reads the notification
@@ -507,7 +510,10 @@ def clear_item_queue(items_queue, new_items_queue):
             elif query_name:
                 content += f"\n🔎 Query: {html.escape(query_name)}"
             if models:
-                content += model_line(best_model(item.title, models), item.price)
+                matched = best_model(item.title, models)
+                content += model_line(matched, item.price)
+                if matched is None and study:
+                    content += "\n⚪ Modello non in lista"
             # add the item to the queue
             # photo_url is passed separately (not just embedded in the {image}
             # placeholder inside content) so the Telegram side can send it as a
@@ -544,7 +550,7 @@ STUDY_PREFIX = "STUDIO"
 
 
 def is_study_query(query_id):
-    """True for a query named "STUDIO ...": its items are recorded, never notified."""
+    """True for a query named "STUDIO ...": every item it finds is notified, whatever its light."""
     for row in db.get_queries() or []:
         if row[0] == query_id:
             return (row[3] or "").strip().upper().startswith(STUDY_PREFIX)
