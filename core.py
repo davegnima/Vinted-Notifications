@@ -432,13 +432,20 @@ def clear_item_queue(items_queue, new_items_queue):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
             # With a model list, only titles naming a listed model whose price can
-            # still reach the target (not 🔴) are notified.
-            # Study queries notify everything, red or unmatched included, to measure.
-            if (
-                models
-                and not study
-                and traffic_light(best_model(item.title, models), item.price) in (None, "🔴")
-            ):
+            # still reach the target (not 🔴) are notified; study queries record the
+            # others too, so their volumes can be measured.
+            if models and traffic_light(best_model(item.title, models), item.price) in (None, "🔴"):
+                if study:
+                    db.add_item_to_db(
+                        id=item.id,
+                        timestamp=item.raw_timestamp,
+                        price=item.price,
+                        title=item.title,
+                        photo_url=item.photo,
+                        query_id=query_id,
+                        currency=item.currency,
+                        brand=item.brand_title,
+                    )
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
             # Check if the item title contains any banwords
@@ -512,8 +519,6 @@ def clear_item_queue(items_queue, new_items_queue):
             if models:
                 matched = best_model(item.title, models)
                 content += model_line(matched, item.price)
-                if matched is None and study:
-                    content += "\n⚪ Modello non in lista"
             # add the item to the queue
             # photo_url is passed separately (not just embedded in the {image}
             # placeholder inside content) so the Telegram side can send it as a
@@ -550,7 +555,7 @@ STUDY_PREFIX = "STUDIO"
 
 
 def is_study_query(query_id):
-    """True for a query named "STUDIO ...": every item it finds is notified, whatever its light."""
+    """True for a query named "STUDIO ...": red and unmatched items are recorded, not dropped."""
     for row in db.get_queries() or []:
         if row[0] == query_id:
             return (row[3] or "").strip().upper().startswith(STUDY_PREFIX)
