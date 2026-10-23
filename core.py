@@ -387,9 +387,16 @@ def log_catalog(item, query_id):
     if not _CATALOG_KEYS_LOGGED[0]:
         _CATALOG_KEYS_LOGGED[0] = True
         logger.info(f"CATALOGO keys={sorted(raw.keys())}")
+        logger.info(
+            f"CATALOGO tracking={str(raw.get('search_tracking_params'))[:400]} "
+            f"source={raw.get('content_source')} item_box={str(raw.get('item_box'))[:300]}"
+        )
     cat = raw.get("catalog_id")
     if cat is None:
         cat = (raw.get("catalog") or {}).get("id") if isinstance(raw.get("catalog"), dict) else None
+    tracking = raw.get("search_tracking_params") or {}
+    if cat is None and isinstance(tracking, dict):
+        cat = tracking.get("catalog_id") or tracking.get("catalog_ids") or tracking.get("category_id")
     logger.info(f"CATALOGO q={query_id} item={item.id} cat={cat} price={item.price} {item.title[:60]}")
 
 
