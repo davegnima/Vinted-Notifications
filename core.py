@@ -370,6 +370,29 @@ def process_items(queue):
         )
 
 
+_CATALOG_KEYS_LOGGED = [False]
+
+
+def log_catalog(item, query_id):
+    """Diagnostic (LOG_CATALOG=1): which Vinted catalogue id each new item sits in.
+
+    The ids needed to narrow a search to its category (catalog[]=...) are not in
+    the tree the user exported for electronics, appliances, sport; the API payload
+    may carry them, so log them next to the title. The raw keys go out once, so a
+    payload without the id is visible too.
+    """
+    if os.environ.get("LOG_CATALOG", "").strip() not in ("1", "true"):
+        return
+    raw = item.raw_data or {}
+    if not _CATALOG_KEYS_LOGGED[0]:
+        _CATALOG_KEYS_LOGGED[0] = True
+        logger.info(f"CATALOGO keys={sorted(raw.keys())}")
+    cat = raw.get("catalog_id")
+    if cat is None:
+        cat = (raw.get("catalog") or {}).get("id") if isinstance(raw.get("catalog"), dict) else None
+    logger.info(f"CATALOGO q={query_id} item={item.id} cat={cat} price={item.price} {item.title[:60]}")
+
+
 def clear_item_queue(items_queue, new_items_queue):
     """
     Process items from the items_queue.
@@ -420,6 +443,7 @@ def clear_item_queue(items_queue, new_items_queue):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 skipped_already_in_db.append(item.id)
                 continue
+            log_catalog(item, query_id)
             # If there's an allowlist and
             # If the user's country is not in the allowlist, we just update the timestamp
             if db.get_allowlist() != 0 and (
