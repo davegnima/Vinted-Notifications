@@ -413,6 +413,8 @@ def log_catalog(item, query_id):
 # Verifica radar (25/10): i modelli della lista con prezzo sopra il buy max (🔴) passano al worker,
 # che manda il semaforo al chat privato. Spento con RADAR_INVIA_ROSSI=0 (default).
 RADAR_INVIA_ROSSI = os.environ.get("RADAR_INVIA_ROSSI", "").strip() in ("1", "true")
+# Verifica (25/10): ogni annuncio delle query di lista (non studio) passa al worker, anche senza modello.
+RADAR_INVIA_TUTTI = os.environ.get("RADAR_INVIA_TUTTI", "").strip() in ("1", "true")
 
 
 def clear_item_queue(items_queue, new_items_queue):
@@ -489,7 +491,7 @@ def clear_item_queue(items_queue, new_items_queue):
             # still reach the target (not 🔴) are notified; study queries record the
             # others too, so their volumes can be measured.
             luce = traffic_light(best_model(item.title, models), item.price) if models else None
-            if models and luce in (None, "🔴") and not (RADAR_INVIA_ROSSI and not study and luce == "🔴"):
+            if models and luce in (None, "🔴") and not (RADAR_INVIA_ROSSI and not study and luce == "🔴") and not (RADAR_INVIA_TUTTI and not study):
                 if study:
                     db.add_item_to_db(
                         id=item.id,
