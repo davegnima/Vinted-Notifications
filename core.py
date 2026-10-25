@@ -410,6 +410,11 @@ def log_catalog(item, query_id):
     )
 
 
+# Verifica radar (25/10): i modelli della lista con prezzo sopra il buy max (🔴) passano al worker,
+# che manda il semaforo al chat privato. Spento con RADAR_INVIA_ROSSI=0 (default).
+RADAR_INVIA_ROSSI = os.environ.get("RADAR_INVIA_ROSSI", "").strip() in ("1", "true")
+
+
 def clear_item_queue(items_queue, new_items_queue):
     """
     Process items from the items_queue.
@@ -483,10 +488,8 @@ def clear_item_queue(items_queue, new_items_queue):
             # With a model list, only titles naming a listed model whose price can
             # still reach the target (not 🔴) are notified; study queries record the
             # others too, so their volumes can be measured.
-            if models and traffic_light(best_model(item.title, models), item.price) in (
-                None,
-                "🔴",
-            ):
+            luce = traffic_light(best_model(item.title, models), item.price) if models else None
+            if models and luce in (None, "🔴") and not (RADAR_INVIA_ROSSI and not study and luce == "🔴"):
                 if study:
                     db.add_item_to_db(
                         id=item.id,
