@@ -856,11 +856,20 @@ def parse_brand_banwords(spec):
 
 
 def contains_brand_banwords(title, brand, rules):
-    """True if the item's brand has a rule and the title contains one of its words (accent/case-insensitive)."""
+    """True if the item's brand has a rule and the title contains one of its words (accent/case-insensitive).
+    A word starting with "=" must match as a whole word ("=top" matches "Top loewe", not "laptop").
+    """
     brand_folded = _fold(brand).strip()
     title_folded = _fold(title)
     for brand_set, words in rules:
-        if brand_folded in brand_set and any(w in title_folded for w in words):
+        if brand_folded in brand_set and any(
+            (
+                re.search(r"\b" + re.escape(w[1:]) + r"\b", title_folded)
+                if w.startswith("=")
+                else w in title_folded
+            )
+            for w in words
+        ):
             return True
     return False
 
