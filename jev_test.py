@@ -37,13 +37,14 @@ def esegui():
     if not chiave:
         logger.error("JEV TEST: manca TYPESAFE_API_KEY")
         return
-    annunci = json.load(open(FILE_TITOLI))
+    with open(FILE_TITOLI) as f:
+        annunci = json.load(f)
     logger.info("JEV TEST | avvio su %d titoli", len(annunci))
     for a in annunci:
         try:
             esito = chiedi(chiave, a)
             logger.info("JEV TEST | item=%s | prezzo=%s | titolo=%s | risposta=%s",
                         a["id"], a["prezzo"], a["titolo"][:70], json.dumps(esito, ensure_ascii=False)[:400])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - un errore su un titolo non ferma il test
             logger.error("JEV TEST | item=%s | errore=%s", a["id"], str(e)[:300])
     logger.info("JEV TEST | fine. Servizio fermo: togliere JEV_TEST per riprendere il radar.")
