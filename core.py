@@ -393,11 +393,21 @@ def log_catalog(item, query_id):
         )
     cat = raw.get("catalog_id")
     if cat is None:
-        cat = (raw.get("catalog") or {}).get("id") if isinstance(raw.get("catalog"), dict) else None
+        cat = (
+            (raw.get("catalog") or {}).get("id")
+            if isinstance(raw.get("catalog"), dict)
+            else None
+        )
     tracking = raw.get("search_tracking_params") or {}
     if cat is None and isinstance(tracking, dict):
-        cat = tracking.get("catalog_id") or tracking.get("catalog_ids") or tracking.get("category_id")
-    logger.info(f"CATALOGO q={query_id} item={item.id} cat={cat} price={item.price} {item.title[:60]}")
+        cat = (
+            tracking.get("catalog_id")
+            or tracking.get("catalog_ids")
+            or tracking.get("category_id")
+        )
+    logger.info(
+        f"CATALOGO q={query_id} item={item.id} cat={cat} price={item.price} {item.title[:60]}"
+    )
 
 
 def clear_item_queue(items_queue, new_items_queue):
@@ -467,7 +477,10 @@ def clear_item_queue(items_queue, new_items_queue):
             # With a model list, only titles naming a listed model whose price can
             # still reach the target (not 🔴) are notified; study queries record the
             # others too, so their volumes can be measured.
-            if models and traffic_light(best_model(item.title, models), item.price) in (None, "🔴"):
+            if models and traffic_light(best_model(item.title, models), item.price) in (
+                None,
+                "🔴",
+            ):
                 if study:
                     db.add_item_to_db(
                         id=item.id,
@@ -484,6 +497,13 @@ def clear_item_queue(items_queue, new_items_queue):
             # Check if the item title contains any banwords
             if banwords_str and contains_banwords(item.title, banwords_str):
                 # If it contains banwords, just update the timestamp and skip
+                db.update_last_timestamp(query_id, item.raw_timestamp)
+                continue
+
+            # Per-brand banwords (opt-in via BANWORDS_BRAND): same handling as the global banwords
+            if BRAND_BANWORDS and contains_brand_banwords(
+                item.title, item.brand_title, BRAND_BANWORDS
+            ):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 continue
 
@@ -627,7 +647,9 @@ def split_query_name(raw_name):
     models, common = [], []
     for entry in re.split(r"[|\n]", models_text):
         if entry.strip().startswith("!"):
-            common += [e for e in (_normalise(x) for x in entry.strip()[1:].split(",")) if e]
+            common += [
+                e for e in (_normalise(x) for x in entry.strip()[1:].split(",")) if e
+            ]
             continue
         label, _, prices = entry.partition("=")
         prices, _, excluded = prices.partition("!")
@@ -643,7 +665,9 @@ def split_query_name(raw_name):
                 "resale": _euros(resale),
                 "buy_max": _euros(buy),
                 "estimate": estimate,
-                "excluded": [e for e in (_normalise(x) for x in excluded.split(",")) if e],
+                "excluded": [
+                    e for e in (_normalise(x) for x in excluded.split(",")) if e
+                ],
             }
         )
     for m in models:
@@ -753,7 +777,11 @@ def query_models(query_id):
 
 def _normalise(text):
     # Accents dropped ("Pokémon" -> "pokemon", "découpe" -> "decoupe"), as in the bot's model table.
-    text = unicodedata.normalize("NFKD", (text or "").lower()).encode("ascii", "ignore").decode()
+    text = (
+        unicodedata.normalize("NFKD", (text or "").lower())
+        .encode("ascii", "ignore")
+        .decode()
+    )
     return " ".join(re.sub(r"[^0-9a-z]+", " ", text).split())
 
 
@@ -797,8 +825,47 @@ def _word_matches(token, word):
     return (
         len(word) >= 2
         and token.startswith(word)
-        and _MODEL_SUFFIX.fullmatch(token[len(word):]) is not None
+        and _MODEL_SUFFIX.fullmatch(token[len(word) :]) is not None
     )
+
+
+def _fold(text):
+    """Lowercase without accents ("Courrèges" -> "courreges")."""
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFKD", (text or "").lower())
+        if not unicodedata.combining(c)
+    )
+
+
+def parse_brand_banwords(spec):
+    """
+    Parse BANWORDS_BRAND (opt-in per instance): rules separated by ";;", each "brand1,brand2::word1|||word2".
+    Returns a list of (set of folded brands, list of folded words).
+    """
+    rules = []
+    for rule in (spec or "").split(";;"):
+        brands, sep, words = rule.partition("::")
+        if not sep:
+            continue
+        brand_set = {_fold(b).strip() for b in brands.split(",") if b.strip()}
+        word_list = [_fold(w).strip() for w in words.split("|||") if w.strip()]
+        if brand_set and word_list:
+            rules.append((brand_set, word_list))
+    return rules
+
+
+def contains_brand_banwords(title, brand, rules):
+    """True if the item's brand has a rule and the title contains one of its words (accent/case-insensitive)."""
+    brand_folded = _fold(brand).strip()
+    title_folded = _fold(title)
+    for brand_set, words in rules:
+        if brand_folded in brand_set and any(w in title_folded for w in words):
+            return True
+    return False
+
+
+BRAND_BANWORDS = parse_brand_banwords(os.environ.get("BANWORDS_BRAND", ""))
 
 
 def contains_banwords(title, banwords_str):
