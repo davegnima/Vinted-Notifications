@@ -443,6 +443,8 @@ def clear_item_queue(items_queue, new_items_queue):
         )
         # TEMP DIAGNOSTIC counters. Remove once diagnosed.
         skipped_already_in_db = []
+        # Motivo di scarto di ogni annuncio della batch, per il log di fine batch.
+        drops = []
         for item in reversed(data):
 
             # The watermark is only meaningful when the API actually supplied a
@@ -453,12 +455,14 @@ def clear_item_queue(items_queue, new_items_queue):
                 and last_query_timestamp is not None
                 and last_query_timestamp >= item.raw_timestamp
             ):
+                drops.append("watermark")
                 continue
             # In case of multiple queries, we need to check if the item is already in the db
             if db.is_item_in_db_by_id(item.id) is True:
                 # We update the timestamp
                 db.update_last_timestamp(query_id, item.raw_timestamp)
                 skipped_already_in_db.append(item.id)
+                drops.append("gia_in_db")
                 continue
             log_catalog(item, query_id)
             # If there's an allowlist and
@@ -467,12 +471,14 @@ def clear_item_queue(items_queue, new_items_queue):
                 get_user_country(item.raw_data["user"]["id"])
             ) not in (db.get_allowlist() + ["XX"]):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
+                drops.append("paese")
                 continue
             # Strict mode (TITLE_MUST_MATCH_QUERY=1): every word of the query's
             # search text must appear in the title. Vinted's text search is fuzzy
             # ("contax t2" returns any camera), so rare-model queries need this.
             if required_words and not title_has_words(item.title, required_words):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
+                drops.append("parole_titolo")
                 continue
             # With a model list, only titles naming a listed model whose price can
             # still reach the target (not 🔴) are notified; study queries record the
@@ -493,11 +499,13 @@ def clear_item_queue(items_queue, new_items_queue):
                         brand=item.brand_title,
                     )
                 db.update_last_timestamp(query_id, item.raw_timestamp)
+                drops.append("fuori_modello_o_rosso")
                 continue
             # Check if the item title contains any banwords
             if banwords_str and contains_banwords(item.title, banwords_str):
                 # If it contains banwords, just update the timestamp and skip
                 db.update_last_timestamp(query_id, item.raw_timestamp)
+                drops.append("banwords")
                 continue
 
             # Per-brand banwords (opt-in via BANWORDS_BRAND): same handling as the global banwords
@@ -505,6 +513,7 @@ def clear_item_queue(items_queue, new_items_queue):
                 item.title, item.brand_title, BRAND_BANWORDS
             ):
                 db.update_last_timestamp(query_id, item.raw_timestamp)
+                drops.append("banwords_brand")
                 continue
 
             # Being recorded is what stops an item coming back next run, so every
@@ -532,7 +541,8 @@ def clear_item_queue(items_queue, new_items_queue):
         logger.info(
             f"clear_item_queue for query {query_id}: batch_size={len(data)} "
             f"already_in_db={skipped_already_in_db} to_notify={[i.id for i in to_notify]} "
-            f"is_first_run={is_first_run}"
+            f"is_first_run={is_first_run} "
+            f"scarti={dict((k, drops.count(k)) for k in sorted(set(drops)))}"
         )
 
         if is_first_run:
