@@ -206,6 +206,13 @@ def plugin_checker():
 
 
 if __name__ == "__main__":
+    # Test Jev (25/10): con JEV_TEST=1 il servizio fa solo il test e resta fermo.
+    if os.environ.get("JEV_TEST", "").strip() == "1":
+        import jev_test
+        jev_test.esegui()
+        while True:
+            time.sleep(3600)
+
 
     # Run db migrations
     current_version = db.get_parameter("version")
