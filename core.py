@@ -542,7 +542,7 @@ def clear_item_queue(items_queue, new_items_queue):
             f"clear_item_queue for query {query_id}: batch_size={len(data)} "
             f"already_in_db={skipped_already_in_db} to_notify={[i.id for i in to_notify]} "
             f"is_first_run={is_first_run} "
-            f"scarti={dict((k, drops.count(k)) for k in sorted(set(drops)))}"
+            f"scarti={ {k: drops.count(k) for k in sorted(set(drops))} }"
         )
 
         if is_first_run:
