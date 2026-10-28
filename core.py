@@ -1,5 +1,6 @@
 import functools
 import html
+import multiprocessing
 import os
 import re
 import time
@@ -42,6 +43,15 @@ def in_night_pause(now=None):
     if start < end:
         return start <= hour < end
     return hour >= start or hour < end
+
+
+# Heartbeat of the scraper (shared memory, created before the processes fork): the monitor restarts the scrape
+# process when it stops updating, e.g. a request that hangs forever (the job scheduler then skips every later run).
+HEARTBEAT = multiprocessing.Value("d", time.time())
+
+
+def beat():
+    HEARTBEAT.value = time.time()
 
 
 # True while paused; starts True if the process is started inside the pause window.
@@ -326,6 +336,7 @@ def process_items(queue):
         None
     """
 
+    beat()
     if in_night_pause():
         if not _pause_state["paused"]:
             logger.info("Night pause started: no requests to Vinted until it ends")
@@ -346,6 +357,7 @@ def process_items(queue):
 
     # for each keyword we parse data
     for query in all_queries:
+        beat()
         all_items = vinted.items.search(query[1], nbr_items=items_per_query)
         # TEMP DIAGNOSTIC: `requester` is a module-level singleton (see
         # requester.py: "requester = Requester()" at import time), shared by

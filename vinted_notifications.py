@@ -143,8 +143,34 @@ def check_refresh_delay(items_queue):
         logger.error(f"Error updating refresh delay: {e}", exc_info=True)
 
 
+SCRAPER_STALL_SECONDS = int(os.environ.get("SCRAPER_STALL_SECONDS", "600"))
+
+
+def check_scraper_heartbeat(items_queue):
+    """Restart the scrape process if it has not shown a sign of life for SCRAPER_STALL_SECONDS (a hung request)."""
+    global scrape_process
+
+    if scrape_process is None or not scrape_process.is_alive():
+        return
+    stalled_for = time.time() - core.HEARTBEAT.value
+    if stalled_for < SCRAPER_STALL_SECONDS:
+        return
+    logger.error(
+        f"Scrape process stalled for {int(stalled_for)} seconds: restarting it"
+    )
+    core.beat()
+    scrape_process.terminate()
+    scrape_process.join()
+    scrape_process = multiprocessing.Process(
+        target=scraper_process, args=(items_queue,)
+    )
+    scrape_process.start()
+
+
 def monitor_processes(items_queue, telegram_queue, rss_queue):
     global telegram_process, rss_process
+
+    check_scraper_heartbeat(items_queue)
 
     # Check if the query refresh delay has changed
     check_refresh_delay(items_queue)
