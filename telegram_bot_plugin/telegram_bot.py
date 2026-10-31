@@ -4,10 +4,14 @@ from telegram.error import RetryAfter
 import db
 import core
 import asyncio
+import os
 from logger import get_logger
 
 # Get logger for this module
 logger = get_logger(__name__)
+
+# TELEGRAM_SILENT=1: i messaggi degli annunci arrivano senza suono ne' vibrazione (istanza radar: il filtro sta nel worker).
+TELEGRAM_SILENT = os.environ.get("TELEGRAM_SILENT", "0").strip().lower() in ("1", "true", "si", "yes")
 
 
 async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -282,6 +286,7 @@ class LeRobot:
                             photo=photo_url,
                             caption=content,
                             parse_mode="HTML",
+                            disable_notification=TELEGRAM_SILENT,
                             read_timeout=40,
                             write_timeout=40,
                             reply_markup=InlineKeyboardMarkup(buttons),
@@ -297,6 +302,7 @@ class LeRobot:
                     chat_ID,
                     content,
                     parse_mode="HTML",
+                    disable_notification=TELEGRAM_SILENT,
                     read_timeout=40,
                     write_timeout=40,
                     reply_markup=InlineKeyboardMarkup(buttons),
