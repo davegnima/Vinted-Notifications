@@ -324,6 +324,11 @@ def get_user_country(profile_id):
     return user_country
 
 
+_DEBUG_ORDINE_QUERIES = {
+    q.strip() for q in os.environ.get("DEBUG_ORDINE_QUERIES", "").split(",") if q.strip()
+}
+
+
 def process_items(queue):
     """
     Process all queries from the database, search for items, and put them in the queue.
@@ -372,6 +377,19 @@ def process_items(queue):
             session_proxies = proxies.mask_proxy(dict(requester.session.proxies))
         except Exception as e:
             session_proxies = f"<error reading proxies: {e}>"
+        # Diagnostica ordine (DEBUG_ORDINE_QUERIES="22,5,1"): per ogni scrape delle query
+        # indicate, id e eta' dell'orario della foto (minuti) di TUTTI gli annunci restituiti
+        # dall'API, nell'ordine in cui arrivano, per capire se newest_first e' rispettato
+        # e se l'orario della foto e' attendibile. Spenta di default.
+        if str(query[0]) in _DEBUG_ORDINE_QUERIES:
+            adesso = time.time()
+            logger.info(
+                f"ORDINE API query={query[0]} n={len(all_items)} "
+                + " ".join(
+                    f"{i.id}:{'-' if not i.has_real_timestamp else round((adesso - i.raw_timestamp) / 60)}"
+                    for i in all_items[:30]
+                )
+            )
         # Filter to only include new items. This should reduce the amount of db calls.
         data = [item for item in all_items if item.is_new_item()]
         queue.put((data, query[0], silent_resume))
