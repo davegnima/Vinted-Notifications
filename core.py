@@ -6,14 +6,15 @@ import re
 import time
 import unicodedata
 from datetime import datetime
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from zoneinfo import ZoneInfo
+
+import requests
 
 import db
 import proxies
-import requests
-from pyVintedVN import Vinted, requester
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from logger import get_logger
+from pyVintedVN import Vinted, requester
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -325,7 +326,9 @@ def get_user_country(profile_id):
 
 
 _DEBUG_ORDINE_QUERIES = {
-    q.strip() for q in os.environ.get("DEBUG_ORDINE_QUERIES", "").split(",") if q.strip()
+    q.strip()
+    for q in os.environ.get("DEBUG_ORDINE_QUERIES", "").split(",")
+    if q.strip()
 }
 
 
@@ -520,8 +523,17 @@ def clear_item_queue(items_queue, new_items_queue):
             # With a model list, only titles naming a listed model whose price can
             # still reach the target (not 🔴) are notified; study queries record the
             # others too, so their volumes can be measured.
-            luce = traffic_light(best_model(item.title, models), item.price) if models else None
-            if models and luce in (None, "🔴") and not (RADAR_INVIA_ROSSI and not study and luce == "🔴") and not (RADAR_INVIA_TUTTI and not study):
+            luce = (
+                traffic_light(best_model(item.title, models), item.price)
+                if models
+                else None
+            )
+            if (
+                models
+                and luce in (None, "🔴")
+                and not (RADAR_INVIA_ROSSI and not study and luce == "🔴")
+                and not (RADAR_INVIA_TUTTI and not study)
+            ):
                 if study:
                     db.add_item_to_db(
                         id=item.id,
@@ -972,6 +984,6 @@ def check_version():
             # If we can't check, assume it's up to date
             return True, ver, ver, github_url
     except Exception as e:
-        logger.error(f"Error checking for new version: {str(e)}", exc_info=True)
+        logger.error(f"Error checking for new version: {e!s}", exc_info=True)
         # If we can't check, assume it's up to date
         return True, ver, ver, github_url

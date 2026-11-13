@@ -1,10 +1,11 @@
+import concurrent.futures
 import random
 import re
-import requests
 import time
+
+import requests
 from requests.exceptions import RequestException
-import concurrent.futures
-from typing import List, Optional
+
 from logger import get_logger
 
 # Get logger for this module
@@ -41,7 +42,7 @@ MAX_PROXY_WORKERS = 10
 PROXY_RECHECK_INTERVAL = 6 * 60 * 60
 
 
-def fetch_proxies_from_link(url: str) -> List[str]:
+def fetch_proxies_from_link(url: str) -> list[str]:
     """
     Fetch proxies from a URL.
 
@@ -62,7 +63,7 @@ def fetch_proxies_from_link(url: str) -> List[str]:
         return []
 
 
-def check_proxies_parallel(proxies_list: List[str]) -> List[str]:
+def check_proxies_parallel(proxies_list: list[str]) -> list[str]:
     """
     Check multiple proxies in parallel using a thread pool.
 
@@ -97,7 +98,7 @@ def check_proxies_parallel(proxies_list: List[str]) -> List[str]:
     return working_proxies
 
 
-def get_random_proxy() -> Optional[str]:
+def get_random_proxy() -> str | None:
     """
     Get a random proxy from the configuration values.
 
@@ -236,8 +237,9 @@ def check_proxy(proxy: str) -> bool:
         session = requests.Session()
 
         # Import db here to avoid circular imports
-        import db
         import json
+
+        import db
 
         # Get user agents and default headers from the database
         user_agents_json = db.get_parameter("user_agents")
@@ -270,7 +272,7 @@ def check_proxy(proxy: str) -> bool:
             session.close()
 
 
-def convert_proxy_string_to_dict(proxy: Optional[str]) -> dict:
+def convert_proxy_string_to_dict(proxy: str | None) -> dict:
     """
     Convert a proxy string to a dictionary format.
 
@@ -294,7 +296,7 @@ def convert_proxy_string_to_dict(proxy: Optional[str]) -> dict:
         return {"http": f"http://{proxy}", "https": f"https://{proxy}"}
 
 
-def configure_proxy(session: requests.Session, proxy: Optional[str] = None) -> bool:
+def configure_proxy(session: requests.Session, proxy: str | None = None) -> bool:
     """
     Configure the proxy settings for a requests session.
 

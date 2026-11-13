@@ -1,11 +1,13 @@
 import json
-import proxies
-import sys
 import os
-import db
 import random
+import sys
+
 import requests
 from requests.exceptions import HTTPError
+
+import db
+import proxies
 
 # Add the parent directory to sys.path to import logger
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,7 +43,6 @@ class Requester:
 
         # Add the parent directory to sys.path to import db
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        import db
 
         self.locale = "www.vinted.fr"
         self.VINTED_AUTH_URL = f"https://{self.locale}/"
@@ -105,8 +106,7 @@ class Requester:
             str: The host serving the catalogue API.
         """
         locale = self.locale
-        if locale.startswith(Urls.VINTED_AUTH_HOST_PREFIX):
-            locale = locale[len(Urls.VINTED_AUTH_HOST_PREFIX) :]
+        locale = locale.removeprefix(Urls.VINTED_AUTH_HOST_PREFIX)
         return f"{Urls.VINTED_API_HOST_PREFIX}{locale}"
 
     def _auth_headers(self):

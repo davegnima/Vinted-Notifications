@@ -1,17 +1,24 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-from telegram.error import RetryAfter
-import db
-import core
 import asyncio
 import os
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import RetryAfter
+from telegram.ext import ContextTypes
+
+import core
+import db
 from logger import get_logger
 
 # Get logger for this module
 logger = get_logger(__name__)
 
 # TELEGRAM_SILENT=1: i messaggi degli annunci arrivano senza suono ne' vibrazione (istanza radar: il filtro sta nel worker).
-TELEGRAM_SILENT = os.environ.get("TELEGRAM_SILENT", "0").strip().lower() in ("1", "true", "si", "yes")
+TELEGRAM_SILENT = os.environ.get("TELEGRAM_SILENT", "0").strip().lower() in (
+    "1",
+    "true",
+    "si",
+    "yes",
+)
 
 
 async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -21,13 +28,13 @@ async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"Hello {update.effective_user.first_name}! Vinted-Notifications is running under version {ver}.\n"
         )
     except Exception as e:
-        logger.error(f"Error in hello command: {str(e)}", exc_info=True)
+        logger.error(f"Error in hello command: {e!s}", exc_info=True)
         try:
             await update.message.reply_text(
                 "An error occurred. Please try again later."
             )
         except Exception as e2:
-            logger.error(f"Error sending error message: {str(e2)}")
+            logger.error(f"Error sending error message: {e2!s}")
 
 
 class LeRobot:
@@ -73,7 +80,7 @@ class LeRobot:
 
             self.app.run_polling()
         except Exception as e:
-            logger.error(f"Error initializing bot: {str(e)}", exc_info=True)
+            logger.error(f"Error initializing bot: {e!s}", exc_info=True)
 
     ### QUERIES ###
 
@@ -105,13 +112,13 @@ class LeRobot:
             else:
                 await update.message.reply_text(message)
         except Exception as e:
-            logger.error(f"Error adding query: {str(e)}", exc_info=True)
+            logger.error(f"Error adding query: {e!s}", exc_info=True)
             try:
                 await update.message.reply_text(
                     "An error occurred while adding the query. Please try again later."
                 )
             except Exception as e2:
-                logger.error(f"Error sending error message: {str(e2)}")
+                logger.error(f"Error sending error message: {e2!s}")
 
     # Remove a query from the db
     async def remove_query(
@@ -140,13 +147,13 @@ class LeRobot:
             else:
                 await update.message.reply_text(message)
         except Exception as e:
-            logger.error(f"Error removing query: {str(e)}", exc_info=True)
+            logger.error(f"Error removing query: {e!s}", exc_info=True)
             try:
                 await update.message.reply_text(
                     "An error occurred while removing the query. Please try again later."
                 )
             except Exception as e2:
-                logger.error(f"Error sending error message: {str(e2)}")
+                logger.error(f"Error sending error message: {e2!s}")
 
     # get all queries from the db
     async def queries(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -154,13 +161,13 @@ class LeRobot:
             query_list = core.get_formatted_query_list()
             await update.message.reply_text(f"Current queries: \n{query_list}")
         except Exception as e:
-            logger.error(f"Error retrieving queries: {str(e)}", exc_info=True)
+            logger.error(f"Error retrieving queries: {e!s}", exc_info=True)
             try:
                 await update.message.reply_text(
                     "An error occurred while retrieving the queries. Please try again later."
                 )
             except Exception as e2:
-                logger.error(f"Error sending error message: {str(e2)}")
+                logger.error(f"Error sending error message: {e2!s}")
 
     ### ALLOWLIST ###
 
@@ -173,13 +180,13 @@ class LeRobot:
                 "Allowlist cleared. All countries are allowed."
             )
         except Exception as e:
-            logger.error(f"Error clearing allowlist: {str(e)}", exc_info=True)
+            logger.error(f"Error clearing allowlist: {e!s}", exc_info=True)
             try:
                 await update.message.reply_text(
                     "An error occurred while clearing the allowlist. Please try again later."
                 )
             except Exception as e2:
-                logger.error(f"Error sending error message: {str(e2)}")
+                logger.error(f"Error sending error message: {e2!s}")
 
     async def add_country(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -197,13 +204,13 @@ class LeRobot:
                 f"{message} Current allowlist: {country_list}"
             )
         except Exception as e:
-            logger.error(f"Error adding country to allowlist: {str(e)}", exc_info=True)
+            logger.error(f"Error adding country to allowlist: {e!s}", exc_info=True)
             try:
                 await update.message.reply_text(
                     "An error occurred while adding the country to the allowlist. Please try again later."
                 )
             except Exception as e2:
-                logger.error(f"Error sending error message: {str(e2)}")
+                logger.error(f"Error sending error message: {e2!s}")
 
     async def remove_country(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -221,15 +228,13 @@ class LeRobot:
                 f"{message} Current allowlist: {country_list}"
             )
         except Exception as e:
-            logger.error(
-                f"Error removing country from allowlist: {str(e)}", exc_info=True
-            )
+            logger.error(f"Error removing country from allowlist: {e!s}", exc_info=True)
             try:
                 await update.message.reply_text(
                     "An error occurred while removing the country from the allowlist. Please try again later."
                 )
             except Exception as e2:
-                logger.error(f"Error sending error message: {str(e2)}")
+                logger.error(f"Error sending error message: {e2!s}")
 
     async def allowlist(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -244,13 +249,13 @@ class LeRobot:
                     f"Current allowlist: {db.get_allowlist()}"
                 )
         except Exception as e:
-            logger.error(f"Error retrieving allowlist: {str(e)}", exc_info=True)
+            logger.error(f"Error retrieving allowlist: {e!s}", exc_info=True)
             try:
                 await update.message.reply_text(
                     "An error occurred while retrieving the allowlist. Please try again later."
                 )
             except Exception as e2:
-                logger.error(f"Error sending error message: {str(e2)}")
+                logger.error(f"Error sending error message: {e2!s}")
 
     ### TELEGRAM SPECIFIC FUNCTIONS ###
 
@@ -316,7 +321,7 @@ class LeRobot:
             # Retry sending the message
             await self.send_new_post(content, url, text, buy_url, buy_text, photo_url)
         except Exception as e:
-            logger.error(f"Error sending new post: {str(e)}", exc_info=True)
+            logger.error(f"Error sending new post: {e!s}", exc_info=True)
 
     async def check_version(self, context: ContextTypes.DEFAULT_TYPE):
         try:
@@ -330,7 +335,7 @@ class LeRobot:
                     "Open Github",
                 )
         except Exception as e:
-            logger.error(f"Error checking for new version: {str(e)}", exc_info=True)
+            logger.error(f"Error checking for new version: {e!s}", exc_info=True)
 
     async def check_telegram_queue(self, context: ContextTypes.DEFAULT_TYPE):
         try:
@@ -350,9 +355,8 @@ class LeRobot:
                     )
                 else:
                     await asyncio.sleep(0.1)
-                    pass
         except Exception as e:
-            logger.error(f"Error checking telegram queue: {str(e)}", exc_info=True)
+            logger.error(f"Error checking telegram queue: {e!s}", exc_info=True)
 
     async def set_commands(self, context: ContextTypes.DEFAULT_TYPE):
         try:
@@ -370,4 +374,4 @@ class LeRobot:
             )
             logger.info("Bot commands set successfully")
         except Exception as e:
-            logger.error(f"Error setting bot commands: {str(e)}", exc_info=True)
+            logger.error(f"Error setting bot commands: {e!s}", exc_info=True)
