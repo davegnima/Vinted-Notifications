@@ -1,8 +1,10 @@
 import multiprocessing
-import time
 import os
-import db
+import time
+
 from apscheduler.schedulers.background import BackgroundScheduler
+
+import db
 from logger import get_logger
 
 # Get logger for this module
@@ -29,7 +31,6 @@ else:
 import core
 from rss_feed_plugin.rss_feed import rss_feed_process
 from web_ui_plugin.web_ui import web_ui_process
-
 
 # Global process references
 telegram_process = None
@@ -82,7 +83,6 @@ def dispatcher_function(input_queue, rss_queue, telegram_queue):
             item = input_queue.get()
             # Send to RSS queue
             rss_queue.put(item)
-            #
             telegram_queue.put(item)
     except (KeyboardInterrupt, SystemExit):
         logger.info("Dispatcher process stopped")
@@ -222,9 +222,9 @@ def monitor_processes(items_queue, telegram_queue, rss_queue):
 def plugin_checker():
     # Get telegram and rss enable status
     telegram_enabled = db.get_parameter("telegram_enabled")
-    logger.info("Telegram enabled: {}".format(telegram_enabled))
+    logger.info(f"Telegram enabled: {telegram_enabled}")
     rss_enabled = db.get_parameter("rss_enabled")
-    logger.info("RSS enabled: {}".format(rss_enabled))
+    logger.info(f"RSS enabled: {rss_enabled}")
 
     # Reset process status at startup
     db.set_parameter("telegram_process_running", telegram_enabled)
@@ -232,14 +232,6 @@ def plugin_checker():
 
 
 if __name__ == "__main__":
-    # Test Jev (25/10): con JEV_TEST=1 il servizio fa solo il test e resta fermo.
-    if os.environ.get("JEV_TEST", "").strip() == "1":
-        import jev_test
-        jev_test.esegui()
-        while True:
-            time.sleep(3600)
-
-
     # Run db migrations
     current_version = db.get_parameter("version")
     # Check if there is a file that starts with the current version in the migrations folder. We keep comparing until

@@ -1,11 +1,13 @@
-from flask import Flask, Response
-import threading
-import time
-import db
 import datetime
 import html
-from logger import get_logger
+import threading
+import time
+
 from feedgen.feed import FeedGenerator
+from flask import Flask, Response
+
+import db
+from logger import get_logger
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -39,7 +41,7 @@ class RSSFeed:
                 self.check_rss_queue()
                 time.sleep(0.1)  # Small sleep to prevent high CPU usage
             except Exception as e:
-                logger.error(f"Error checking RSS queue: {str(e)}", exc_info=True)
+                logger.error(f"Error checking RSS queue: {e!s}", exc_info=True)
 
     def check_rss_queue(self):
         if not self.queue.empty():
@@ -50,7 +52,7 @@ class RSSFeed:
                 self.add_item_to_feed(content, url)
             except Exception as e:
                 logger.error(
-                    f"Error processing item for RSS feed: {str(e)}", exc_info=True
+                    f"Error processing item for RSS feed: {e!s}", exc_info=True
                 )
 
     def add_item_to_feed(self, content, url):
@@ -65,7 +67,6 @@ class RSSFeed:
                     title = content[title_start:title_end]
         except Exception as e:
             logger.debug(f"Error extracting title from content: {e}")
-            pass
 
         # Create a new entry
         fe = self.fg.add_entry()
@@ -92,7 +93,7 @@ class RSSFeed:
             logger.info(f"Starting RSS feed server on port {port}")
             self.app.run(host="0.0.0.0", port=port)
         except Exception as e:
-            logger.error(f"Error starting RSS feed server: {str(e)}", exc_info=True)
+            logger.error(f"Error starting RSS feed server: {e!s}", exc_info=True)
 
 
 def rss_feed_process(queue):

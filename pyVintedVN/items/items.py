@@ -1,8 +1,9 @@
+from urllib.parse import parse_qsl, urlparse
+
+from requests.exceptions import HTTPError
+
 from pyVintedVN.items.item import Item
 from pyVintedVN.requester import requester
-from urllib.parse import urlparse, parse_qsl
-from requests.exceptions import HTTPError
-from typing import List, Dict, Optional
 from pyVintedVN.settings import Urls
 
 
@@ -23,9 +24,9 @@ class Items:
         url: str,
         nbr_items: int = 20,
         page: int = 1,
-        time: Optional[int] = None,
+        time: int | None = None,
         json: bool = False,
-    ) -> List[Item]:
+    ) -> list[Item]:
         """
         Retrieve items from a given search URL on Vinted.
 
@@ -76,8 +77,8 @@ class Items:
             raise err
 
     def parse_url(
-        self, url: str, nbr_items: int = 20, page: int = 1, time: Optional[int] = None
-    ) -> Dict:
+        self, url: str, nbr_items: int = 20, page: int = 1, time: int | None = None
+    ) -> dict:
         """
         Parse a Vinted search URL to get parameters for the API call.
 

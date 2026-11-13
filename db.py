@@ -1,5 +1,6 @@
 import sqlite3
 from traceback import print_exc
+
 from logger import get_logger
 
 logger = get_logger(__name__)

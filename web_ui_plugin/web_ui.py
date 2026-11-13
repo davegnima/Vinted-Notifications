@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-import db
-import core
 import os
 import re
-from urllib.parse import urlparse, parse_qs
 from datetime import datetime
+from urllib.parse import parse_qs, urlparse
+
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+
+import core
+import db
 from logger import get_logger
 
 # Get logger for this module
@@ -117,7 +119,7 @@ def index():
             ),
             "query": last_item[5],
             "photo_url": last_item[6],
-            "url": f"{urlparse(last_item[5]).scheme}://{urlparse(last_item[5]).netloc}/items/{last_item[0]}"
+            "url": f"{urlparse(last_item[5]).scheme}://{urlparse(last_item[5]).netloc}/items/{last_item[0]}",
         }
     else:
         stats["last_item"] = None
@@ -259,9 +261,15 @@ def items():
                 # Ugly Ugly Ugly very Ugly eeew but I have to do a proper migration of existing db later else it'll break
                 # Eeew bad me >:c
                 "query": (
-                    item[7] if item[7] else parse_qs(urlparse(item[5]).query).get("search_text", [None])[0]
-                    if parse_qs(urlparse(item[5]).query).get("search_text", [None])[0]
-                    else item[5]
+                    item[7]
+                    if item[7]
+                    else (
+                        parse_qs(urlparse(item[5]).query).get("search_text", [None])[0]
+                        if parse_qs(urlparse(item[5]).query).get("search_text", [None])[
+                            0
+                        ]
+                        else item[5]
+                    )
                 ),
                 "url": f"{urlparse(item[5]).scheme}://{urlparse(item[5]).netloc}/items/{item[0]}",
                 "photo_url": item[6],
