@@ -1,9 +1,19 @@
+import hmac
 import os
 import re
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    Response,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 import core
 import db
@@ -23,6 +33,33 @@ app = Flask(
 
 # Secret key for session management
 app.secret_key = os.urandom(24)
+
+
+# Password of the web interface (opt-in): with WEB_UI_PASSWORD set, every page asks for HTTP Basic credentials
+# (user WEB_UI_USER, default "admin"). The page shows the proxy list and the Telegram token, so a public
+# address must not be left open.
+WEB_UI_USER = os.environ.get("WEB_UI_USER", "admin")
+WEB_UI_PASSWORD = os.environ.get("WEB_UI_PASSWORD", "")
+
+
+@app.before_request
+def require_password():
+    if not WEB_UI_PASSWORD:
+        return None
+    auth = request.authorization
+    if (
+        auth
+        and auth.username is not None
+        and auth.password is not None
+        and hmac.compare_digest(auth.username.encode(), WEB_UI_USER.encode())
+        and hmac.compare_digest(auth.password.encode(), WEB_UI_PASSWORD.encode())
+    ):
+        return None
+    return Response(
+        "Authentication required",
+        401,
+        {"WWW-Authenticate": 'Basic realm="Vinted Notifications"'},
+    )
 
 
 @app.context_processor
