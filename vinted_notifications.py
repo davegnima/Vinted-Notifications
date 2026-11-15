@@ -35,12 +35,39 @@ from web_ui_plugin.web_ui import web_ui_process
 # Global process references
 telegram_process = None
 rss_process = None
-scrape_process = None
+scrape_processes = []
 current_query_refresh_delay = None
 
+# Number of scrape processes (SCRAPER_PROCESSES, default 1): each takes every n-th query, so with a short refresh delay
+# a full round over all queries fits in it. Every process has its own HTTP session and proxy rotation.
+SCRAPER_PROCESSES = max(1, int(os.environ.get("SCRAPER_PROCESSES", "1") or 1))
 
-def scraper_process(items_queue):
-    logger.info("Scrape process started")
+
+def start_scrapers(items_queue):
+    """(Re)start the scrape processes; any still running are stopped first."""
+    stop_scrapers()
+    for i in range(SCRAPER_PROCESSES):
+        p = multiprocessing.Process(
+            target=scraper_process, args=(items_queue, i, SCRAPER_PROCESSES)
+        )
+        p.start()
+        scrape_processes.append(p)
+
+
+def stop_scrapers():
+    for p in scrape_processes:
+        p.terminate()
+    for p in scrape_processes:
+        p.join()
+    scrape_processes.clear()
+
+
+def scrapers_alive():
+    return bool(scrape_processes) and all(p.is_alive() for p in scrape_processes)
+
+
+def scraper_process(items_queue, shard=0, shards=1):
+    logger.info(f"Scrape process started (part {shard + 1} of {shards})")
 
     # Get the query refresh delay from the database
     current_query_refresh_delay = int(db.get_parameter("query_refresh_delay"))
@@ -51,7 +78,7 @@ def scraper_process(items_queue):
         core.process_items,
         "interval",
         seconds=current_query_refresh_delay,
-        args=[items_queue],
+        args=[items_queue, shard, shards],
         name="scraper",
     )
     scraper_scheduler.start()
@@ -108,11 +135,11 @@ def telegram_bot_process(queue):
 
 def check_refresh_delay(items_queue):
     """Check if the query refresh delay has changed and update the scheduler if needed"""
-    global scrape_process, current_query_refresh_delay
+    global current_query_refresh_delay
 
     # Check if the scheduler is running
 
-    if scrape_process is None or not scrape_process.is_alive():
+    if not scrapers_alive():
         return
 
     # Get the current value from the database
@@ -129,12 +156,7 @@ def check_refresh_delay(items_queue):
             current_query_refresh_delay = new_delay
 
             # Remove the existing job and add a new one with the updated interval
-            scrape_process.terminate()
-            scrape_process.join()
-            scrape_process = multiprocessing.Process(
-                target=scraper_process, args=(items_queue,)
-            )
-            scrape_process.start()
+            start_scrapers(items_queue)
 
             logger.info(
                 f"Scheduler updated with new refresh delay of {new_delay} seconds"
@@ -148,9 +170,7 @@ SCRAPER_STALL_SECONDS = int(os.environ.get("SCRAPER_STALL_SECONDS", "600"))
 
 def check_scraper_heartbeat(items_queue):
     """Restart the scrape process if it has not shown a sign of life for SCRAPER_STALL_SECONDS (a hung request)."""
-    global scrape_process
-
-    if scrape_process is None or not scrape_process.is_alive():
+    if not scrapers_alive():
         return
     stalled_for = time.time() - core.HEARTBEAT.value
     if stalled_for < SCRAPER_STALL_SECONDS:
@@ -159,12 +179,7 @@ def check_scraper_heartbeat(items_queue):
         f"Scrape process stalled for {int(stalled_for)} seconds: restarting it"
     )
     core.beat()
-    scrape_process.terminate()
-    scrape_process.join()
-    scrape_process = multiprocessing.Process(
-        target=scraper_process, args=(items_queue,)
-    )
-    scrape_process.start()
+    start_scrapers(items_queue)
 
 
 def monitor_processes(items_queue, telegram_queue, rss_queue):
@@ -261,10 +276,7 @@ if __name__ == "__main__":
     # 1. Create and start the scrape process
     # This process will scrape items and put them in the items_queue
     current_query_refresh_delay = int(db.get_parameter("query_refresh_delay"))
-    scrape_process = multiprocessing.Process(
-        target=scraper_process, args=(items_queue,)
-    )
-    scrape_process.start()
+    start_scrapers(items_queue)
 
     # 2. Create the item extractor process
     # This process will extract items from the items_queue and put them in the new_items_queue
@@ -304,7 +316,8 @@ if __name__ == "__main__":
 
     try:
         # Wait for processes to finish (which they won't unless interrupted)
-        scrape_process.join()
+        for p in scrape_processes:
+            p.join()
         item_extractor_process.join()
         dispatcher_process.join()
         web_ui_process_instance.join()
@@ -322,7 +335,7 @@ if __name__ == "__main__":
         monitor_scheduler.shutdown()
 
         # Terminate all processes
-        scrape_process.terminate()
+        stop_scrapers()
         item_extractor_process.terminate()
         dispatcher_process.terminate()
         # Terminate web UI process
@@ -340,7 +353,6 @@ if __name__ == "__main__":
             db.set_parameter("rss_process_running", "False")
 
         # Wait for all processes to terminate
-        scrape_process.join()
         item_extractor_process.join()
         dispatcher_process.join()
         web_ui_process_instance.join()
