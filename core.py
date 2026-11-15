@@ -332,13 +332,15 @@ _DEBUG_ORDINE_QUERIES = {
 }
 
 
-def process_items(queue):
+def process_items(queue, shard=0, shards=1):
     """
     Process all queries from the database, search for items, and put them in the queue.
     Uses the global items_queue by default, but can accept a custom queue for backward compatibility.
 
     Args:
         queue (Queue, optional): The queue to put the items in. Defaults to the global items_queue.
+        shard, shards (int): with several scrape processes (SCRAPER_PROCESSES), process number `shard` takes every
+            `shards`-th query, so a full round of requests takes 1/shards of the time. Defaults: all queries.
 
     Returns:
         None
@@ -356,6 +358,8 @@ def process_items(queue):
         _pause_state["paused"] = False
 
     all_queries = db.get_queries()
+    if shards > 1:
+        all_queries = all_queries[shard::shards]
 
     # Initialize Vinted
     vinted = Vinted()
