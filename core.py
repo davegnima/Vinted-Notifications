@@ -559,6 +559,12 @@ def clear_item_queue(items_queue, new_items_queue):
                 drops.append("banwords")
                 continue
 
+            # Brand esclusi per nome (opt-in via BRAND_ESCLUSI): stessa gestione dei banwords
+            if BRAND_ESCLUSI and _fold(item.brand_title).strip() in BRAND_ESCLUSI:
+                db.update_last_timestamp(query_id, item.raw_timestamp)
+                drops.append("brand_escluso")
+                continue
+
             # Per-brand banwords (opt-in via BANWORDS_BRAND): same handling as the global banwords
             if BRAND_BANWORDS and contains_brand_banwords(
                 item.title, item.brand_title, BRAND_BANWORDS
@@ -936,6 +942,10 @@ def contains_brand_banwords(title, brand, rules):
 
 
 BRAND_BANWORDS = parse_brand_banwords(os.environ.get("BANWORDS_BRAND", ""))
+# Brand esclusi per nome, separati da virgola (opt-in): per toglierli senza conoscerne l'id Vinted.
+BRAND_ESCLUSI = {
+    _fold(b).strip() for b in os.environ.get("BRAND_ESCLUSI", "").split(",") if b.strip()
+}
 
 
 def contains_banwords(title, banwords_str):

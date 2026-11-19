@@ -10,7 +10,7 @@ Le regole dell'utente (lingua, niente chiavi nei file, niente scraping di vinted
 Ogni merge su `main` fa il deploy di entrambi: comportamento identico, cambia solo la configurazione (ricerche e variabili).
 
 ## Variabili d'ambiente proprie lette dal codice
-`BANWORDS_BRAND`, `DEBUG_ORDINE_QUERIES`, `LOG_CATALOG`, `NIGHT_PAUSE_FROM`, `NIGHT_PAUSE_TO`, `RADAR_INVIA_ROSSI`, `RADAR_INVIA_TUTTI`, `SCRAPER_STALL_SECONDS`, `TELEGRAM_SILENT`, `TITLE_MUST_MATCH_QUERY`.
+`BANWORDS_BRAND`, `BRAND_ESCLUSI`, `DEBUG_ORDINE_QUERIES`, `LOG_CATALOG`, `NIGHT_PAUSE_FROM`, `NIGHT_PAUSE_TO`, `RADAR_INVIA_ROSSI`, `RADAR_INVIA_TUTTI`, `SCRAPER_STALL_SECONDS`, `TELEGRAM_SILENT`, `TITLE_MUST_MATCH_QUERY`.
 
 ## Ricerche
 Si gestiscono dalla pagina `/queries` dell'interfaccia web. Modifica con POST a `/update_query/<id>`, rimozione con POST a `/remove_query/<id>` (`/remove_query/all` le toglie tutte). Il tracker non va visitato su vinted.it da Claude: le pagine le scarica il bot.
